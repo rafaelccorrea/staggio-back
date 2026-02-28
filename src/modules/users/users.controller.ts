@@ -1,35 +1,37 @@
-import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Controller, Get, Patch, Body } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from './entities/user.entity';
 
 @ApiTags('users')
-@Controller('users')
-@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
+@Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Get('profile')
-  @ApiOperation({ summary: 'Obter perfil do utilizador' })
-  async getProfile(@CurrentUser() user: User) {
+  @Get('me')
+  @ApiOperation({ summary: 'Obter dados do utilizador autenticado' })
+  @ApiResponse({ status: 200, description: 'Dados do utilizador' })
+  async getMe(@CurrentUser() user: User) {
     return this.usersService.findById(user.id);
   }
 
-  @Put('profile')
-  @ApiOperation({ summary: 'Atualizar perfil' })
-  async updateProfile(
+  @Patch('me')
+  @ApiOperation({ summary: 'Atualizar perfil do utilizador' })
+  @ApiResponse({ status: 200, description: 'Perfil atualizado com sucesso' })
+  async updateMe(
     @CurrentUser() user: User,
-    @Body() data: Partial<User>,
+    @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.usersService.updateProfile(user.id, data);
+    return this.usersService.update(user.id, updateUserDto);
   }
 
-  @Get('dashboard')
+  @Get('me/stats')
   @ApiOperation({ summary: 'Obter estatísticas do dashboard' })
-  async getDashboard(@CurrentUser() user: User) {
+  @ApiResponse({ status: 200, description: 'Estatísticas do utilizador' })
+  async getStats(@CurrentUser() user: User) {
     return this.usersService.getDashboardStats(user.id);
   }
 }

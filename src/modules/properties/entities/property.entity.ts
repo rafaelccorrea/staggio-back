@@ -5,8 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  JoinColumn,
   OneToMany,
 } from 'typeorm';
+import { ApiProperty } from '@nestjs/swagger';
 import { User } from '../../users/entities/user.entity';
 import { Generation } from '../../generations/entities/generation.entity';
 
@@ -16,6 +18,7 @@ export enum PropertyType {
   LAND = 'land',
   COMMERCIAL = 'commercial',
   FARM = 'farm',
+  CONDO = 'condo',
 }
 
 export enum PropertyStatus {
@@ -27,86 +30,93 @@ export enum PropertyStatus {
 
 @Entity('properties')
 export class Property {
+  @ApiProperty({ description: 'ID único do imóvel' })
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @ApiProperty({ description: 'Título do imóvel' })
+  @Column({ length: 255 })
   title: string;
 
+  @ApiProperty({ description: 'Descrição', required: false })
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({
-    type: 'enum',
-    enum: PropertyType,
-    default: PropertyType.HOUSE,
-  })
+  @ApiProperty({ description: 'Descrição gerada por IA', required: false })
+  @Column({ name: 'ai_description', type: 'text', nullable: true })
+  aiDescription: string;
+
+  @ApiProperty({ description: 'Tipo do imóvel', enum: PropertyType })
+  @Column({ type: 'enum', enum: PropertyType, default: PropertyType.HOUSE })
   type: PropertyType;
 
-  @Column({
-    type: 'enum',
-    enum: PropertyStatus,
-    default: PropertyStatus.AVAILABLE,
-  })
+  @ApiProperty({ description: 'Status', enum: PropertyStatus })
+  @Column({ type: 'enum', enum: PropertyStatus, default: PropertyStatus.AVAILABLE })
   status: PropertyStatus;
 
+  @ApiProperty({ description: 'Preço', required: false })
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   price: number;
 
+  @ApiProperty({ description: 'Área em m²', required: false })
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   area: number;
 
+  @ApiProperty({ description: 'Quartos', required: false })
   @Column({ nullable: true })
   bedrooms: number;
 
+  @ApiProperty({ description: 'Banheiros', required: false })
   @Column({ nullable: true })
   bathrooms: number;
 
-  @Column({ nullable: true })
+  @ApiProperty({ description: 'Vagas de garagem', required: false })
+  @Column({ name: 'parking_spots', nullable: true })
   parkingSpots: number;
 
+  @ApiProperty({ description: 'Endereço', required: false })
   @Column({ nullable: true })
   address: string;
 
-  @Column({ nullable: true })
+  @ApiProperty({ description: 'Cidade', required: false })
+  @Column({ nullable: true, length: 100 })
   city: string;
 
-  @Column({ nullable: true })
+  @ApiProperty({ description: 'Estado', required: false })
+  @Column({ nullable: true, length: 2 })
   state: string;
 
-  @Column({ nullable: true })
-  zipCode: string;
-
-  @Column({ nullable: true })
+  @ApiProperty({ description: 'Bairro', required: false })
+  @Column({ nullable: true, length: 100 })
   neighborhood: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
-  latitude: number;
+  @ApiProperty({ description: 'CEP', required: false })
+  @Column({ name: 'zip_code', nullable: true, length: 10 })
+  zipCode: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
-  longitude: number;
-
-  @Column('simple-array', { nullable: true })
+  @ApiProperty({ description: 'URLs das imagens' })
+  @Column({ type: 'simple-array', nullable: true })
   images: string[];
 
-  @Column('simple-array', { nullable: true })
+  @ApiProperty({ description: 'Características do imóvel' })
+  @Column({ type: 'simple-array', nullable: true })
   features: string[];
 
-  @Column({ type: 'text', nullable: true })
-  aiDescription: string;
-
-  @Column()
+  @Column({ name: 'user_id' })
   userId: string;
 
-  @ManyToOne(() => User, (user) => user.properties)
+  @ManyToOne(() => User, (user) => user.properties, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
   @OneToMany(() => Generation, (generation) => generation.property)
   generations: Generation[];
 
-  @CreateDateColumn()
+  @ApiProperty({ description: 'Data de criação' })
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @ApiProperty({ description: 'Data de atualização' })
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }

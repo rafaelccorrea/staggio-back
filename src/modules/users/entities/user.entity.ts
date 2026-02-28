@@ -7,6 +7,7 @@ import {
   OneToMany,
   OneToOne,
 } from 'typeorm';
+import { ApiProperty } from '@nestjs/swagger';
 import { Exclude } from 'class-transformer';
 import { Property } from '../../properties/entities/property.entity';
 import { Generation } from '../../generations/entities/generation.entity';
@@ -18,51 +19,74 @@ export enum UserRole {
   ADMIN = 'admin',
 }
 
+export enum UserPlan {
+  FREE = 'free',
+  STARTER = 'starter',
+  PRO = 'pro',
+  AGENCY = 'agency',
+}
+
 @Entity('users')
 export class User {
+  @ApiProperty({ description: 'ID único do utilizador' })
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @ApiProperty({ description: 'Nome completo' })
+  @Column({ length: 255 })
   name: string;
 
-  @Column({ unique: true })
+  @ApiProperty({ description: 'Email' })
+  @Column({ unique: true, length: 255 })
   email: string;
 
-  @Column()
   @Exclude()
+  @Column()
   password: string;
 
-  @Column({ nullable: true })
+  @ApiProperty({ description: 'Telefone', required: false })
+  @Column({ nullable: true, length: 20 })
   phone: string;
 
-  @Column({ nullable: true })
+  @ApiProperty({ description: 'CRECI do corretor', required: false })
+  @Column({ nullable: true, length: 50 })
   creci: string;
 
-  @Column({ nullable: true })
+  @ApiProperty({ description: 'URL do avatar', required: false })
+  @Column({ name: 'avatar_url', nullable: true })
   avatarUrl: string;
 
-  @Column({
-    type: 'enum',
-    enum: UserRole,
-    default: UserRole.CORRETOR,
-  })
+  @ApiProperty({ description: 'Papel do utilizador', enum: UserRole })
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.CORRETOR })
   role: UserRole;
 
-  @Column({ default: true })
-  isActive: boolean;
+  @ApiProperty({ description: 'Plano atual', enum: UserPlan })
+  @Column({ type: 'enum', enum: UserPlan, default: UserPlan.FREE })
+  plan: UserPlan;
 
-  @Column({ nullable: true })
-  stripeCustomerId: string;
-
-  @Column({ default: 0 })
+  @ApiProperty({ description: 'Créditos de IA utilizados no mês' })
+  @Column({ name: 'ai_credits_used', default: 0 })
   aiCreditsUsed: number;
 
-  @Column({ default: 20 })
+  @ApiProperty({ description: 'Limite de créditos de IA' })
+  @Column({ name: 'ai_credits_limit', default: 5 })
   aiCreditsLimit: number;
 
-  @OneToOne(() => Subscription, (subscription) => subscription.user)
-  subscription: Subscription;
+  @ApiProperty({ description: 'ID do cliente no Stripe', required: false })
+  @Column({ name: 'stripe_customer_id', nullable: true })
+  stripeCustomerId: string;
+
+  @ApiProperty({ description: 'Conta ativa' })
+  @Column({ name: 'is_active', default: true })
+  isActive: boolean;
+
+  @ApiProperty({ description: 'Data de criação' })
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+
+  @ApiProperty({ description: 'Data de atualização' })
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
 
   @OneToMany(() => Property, (property) => property.user)
   properties: Property[];
@@ -70,9 +94,6 @@ export class User {
   @OneToMany(() => Generation, (generation) => generation.user)
   generations: Generation[];
 
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @OneToOne(() => Subscription, (subscription) => subscription.user)
+  subscription: Subscription;
 }

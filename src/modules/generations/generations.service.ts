@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Generation, GenerationType } from './entities/generation.entity';
-import { User } from '../users/entities/user.entity';
+import { Generation } from './entities/generation.entity';
+import { GenerationQueryDto } from './dto/generation-query.dto';
 
 @Injectable()
 export class GenerationsService {
@@ -11,43 +11,69 @@ export class GenerationsService {
     private generationsRepository: Repository<Generation>,
   ) {}
 
-  async findAll(
-    user: User,
-    page = 1,
-    limit = 20,
-    type?: GenerationType,
-  ): Promise<{ data: Generation[]; total: number }> {
-    const where: any = { userId: user.id };
-    if (type) where.type = type;
+  async findAll(userId: string, query: GenerationQueryDto) {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const skip = (page - 1) * limit;
 
-    const [data, total] = await this.generationsRepository.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-      relations: ['property'],
-    });
+    const qb = this.generationsRepository
+      .createQueryBuilder('generation')
+      .where('generation.user_id = :userId', { userId });
 
-    return { data, total };
+    if (query.type) {
+      qb.andWhere('generation.type = :type', { type: query.type });
+    }
+
+    if (query.status) {
+      qb.andWhere('generation.status = :status', { status: query.status });
+    }
+
+    qb.orderBy('generation.created_at', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
-  async findOne(id: string, user: User): Promise<Generation | null> {
-    return this.generationsRepository.findOne({
-      where: { id, userId: user.id },
-      relations: ['property'],
+  async findOne(userId: string, id: string): Promise<Generation> {
+    const generation = await this.generationsRepository.findOne({
+      where: { id, userId },
     });
+
+    if (!generation) {
+      throw new NotFoundException('Geração não encontrada');
+    }
+
+    return generation;
   }
 
-  async getStats(user: User) {
-    const total = await this.generationsRepository.count({ where: { userId: user.id } });
+  async getStats(userId: string) {
+    const totalGenerations = await this.generationsRepository.count({
+      where: { userId },
+    });
+
     const byType = await this.generationsRepository
       .createQueryBuilder('generation')
       .select('generation.type', 'type')
       .addSelect('COUNT(*)', 'count')
-      .where('generation.userId = :userId', { userId: user.id })
+      .addSelect('SUM(generation.credits_used)', 'totalCredits')
+      .where('generation.user_id = :userId', { userId })
       .groupBy('generation.type')
       .getRawMany();
 
-    return { total, byType };
+    return {
+      totalGenerations,
+      byType,
+    };
   }
 }

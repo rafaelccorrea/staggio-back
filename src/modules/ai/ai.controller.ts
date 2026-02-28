@@ -1,66 +1,79 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { AiService } from './ai.service';
-import { User } from '../users/entities/user.entity';
+import { Controller, Post, Body } from '@nestjs/common';
 import {
-  GenerateDescriptionDto,
-  GenerateStagingDto,
-  GenerateTerrainVisionDto,
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import { AiService } from './ai.service';
+import {
+  StagingDto,
+  TerrainVisionDto,
+  DescriptionDto,
   PhotoEnhanceDto,
-  ChatAssistantDto,
+  ChatDto,
 } from './dto/ai.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '../users/entities/user.entity';
 
 @ApiTags('ai')
-@Controller('ai')
-@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
+@Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
 
-  @Post('description')
-  @ApiOperation({ summary: 'Gerar descrição de imóvel com IA' })
-  async generateDescription(
-    @CurrentUser() user: User,
-    @Body() dto: GenerateDescriptionDto,
-  ) {
-    return this.aiService.generateDescription(user, dto);
-  }
-
   @Post('staging')
-  @ApiOperation({ summary: 'Gerar prompt de home staging virtual' })
-  async generateStaging(
-    @CurrentUser() user: User,
-    @Body() dto: GenerateStagingDto,
-  ) {
-    return this.aiService.generateStagingPrompt(user, dto);
+  @ApiOperation({
+    summary: 'Home Staging Virtual',
+    description: 'Transforma ambientes vazios em decorados com IA. Consome 2 créditos.',
+  })
+  @ApiResponse({ status: 200, description: 'Staging gerado com sucesso' })
+  @ApiResponse({ status: 403, description: 'Créditos insuficientes' })
+  async staging(@CurrentUser() user: User, @Body() dto: StagingDto) {
+    return this.aiService.staging(user.id, dto);
   }
 
   @Post('terrain-vision')
-  @ApiOperation({ summary: 'Gerar visão de construção em terreno' })
-  async generateTerrainVision(
-    @CurrentUser() user: User,
-    @Body() dto: GenerateTerrainVisionDto,
-  ) {
-    return this.aiService.generateTerrainVision(user, dto);
+  @ApiOperation({
+    summary: 'Visão de Terreno',
+    description: 'Visualiza construções em terrenos vazios com IA. Consome 3 créditos.',
+  })
+  @ApiResponse({ status: 200, description: 'Visão de terreno gerada com sucesso' })
+  @ApiResponse({ status: 403, description: 'Créditos insuficientes' })
+  async terrainVision(@CurrentUser() user: User, @Body() dto: TerrainVisionDto) {
+    return this.aiService.terrainVision(user.id, dto);
+  }
+
+  @Post('description')
+  @ApiOperation({
+    summary: 'Descrição IA',
+    description: 'Gera descrições profissionais para anúncios de imóveis. Consome 1 crédito.',
+  })
+  @ApiResponse({ status: 200, description: 'Descrição gerada com sucesso' })
+  @ApiResponse({ status: 403, description: 'Créditos insuficientes' })
+  async description(@CurrentUser() user: User, @Body() dto: DescriptionDto) {
+    return this.aiService.description(user.id, dto);
   }
 
   @Post('photo-enhance')
-  @ApiOperation({ summary: 'Gerar prompt de melhoria de foto' })
-  async enhancePhoto(
-    @CurrentUser() user: User,
-    @Body() dto: PhotoEnhanceDto,
-  ) {
-    return this.aiService.generatePhotoEnhancePrompt(user, dto);
+  @ApiOperation({
+    summary: 'Melhoria de Fotos',
+    description: 'Analisa e sugere melhorias para fotos de imóveis. Consome 1 crédito.',
+  })
+  @ApiResponse({ status: 200, description: 'Análise de foto gerada com sucesso' })
+  @ApiResponse({ status: 403, description: 'Créditos insuficientes' })
+  async photoEnhance(@CurrentUser() user: User, @Body() dto: PhotoEnhanceDto) {
+    return this.aiService.photoEnhance(user.id, dto);
   }
 
   @Post('chat')
-  @ApiOperation({ summary: 'Chat com assistente de IA' })
-  async chatAssistant(
-    @CurrentUser() user: User,
-    @Body() dto: ChatAssistantDto,
-  ) {
-    return this.aiService.chatAssistant(user, dto);
+  @ApiOperation({
+    summary: 'Chat IA',
+    description: 'Assistente inteligente para corretores de imóveis. Consome 1 crédito.',
+  })
+  @ApiResponse({ status: 200, description: 'Resposta do assistente' })
+  @ApiResponse({ status: 403, description: 'Créditos insuficientes' })
+  async chat(@CurrentUser() user: User, @Body() dto: ChatDto) {
+    return this.aiService.chat(user.id, dto);
   }
 }

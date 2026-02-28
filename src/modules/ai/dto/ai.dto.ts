@@ -1,105 +1,147 @@
-import { IsString, IsOptional, IsNumber, IsArray, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
-export class GenerateDescriptionDto {
-  @ApiProperty({ example: 'Apartamento' })
+export enum StagingStyle {
+  MODERN = 'moderno',
+  CLASSIC = 'classico',
+  MINIMALIST = 'minimalista',
+  INDUSTRIAL = 'industrial',
+  RUSTIC = 'rustico',
+  LUXURY = 'luxo',
+}
+
+export enum BuildingType {
+  HOUSE = 'casa',
+  APARTMENT_BUILDING = 'predio',
+  COMMERCIAL = 'comercial',
+  TOWNHOUSE = 'sobrado',
+}
+
+export class StagingDto {
+  @ApiProperty({ description: 'URL da imagem do ambiente', example: 'https://storage.supabase.co/...' })
+  @IsNotEmpty({ message: 'URL da imagem é obrigatória' })
   @IsString()
-  propertyType: string;
+  imageUrl: string;
 
-  @ApiPropertyOptional({ example: 3 })
+  @ApiProperty({ description: 'Estilo de decoração', enum: StagingStyle })
+  @IsNotEmpty()
+  @IsEnum(StagingStyle)
+  style: StagingStyle;
+
+  @ApiPropertyOptional({ description: 'Tipo de ambiente', example: 'sala de estar' })
   @IsOptional()
-  @IsNumber()
-  bedrooms?: number;
+  @IsString()
+  roomType?: string;
 
-  @ApiPropertyOptional({ example: 2 })
+  @ApiPropertyOptional({ description: 'ID do imóvel associado' })
   @IsOptional()
-  @IsNumber()
-  bathrooms?: number;
+  @IsUUID()
+  propertyId?: string;
+}
 
-  @ApiPropertyOptional({ example: 120 })
+export class TerrainVisionDto {
+  @ApiProperty({ description: 'URL da imagem do terreno' })
+  @IsNotEmpty()
+  @IsString()
+  imageUrl: string;
+
+  @ApiProperty({ description: 'Tipo de construção', enum: BuildingType })
+  @IsNotEmpty()
+  @IsEnum(BuildingType)
+  buildingType: BuildingType;
+
+  @ApiPropertyOptional({ description: 'Estilo arquitetônico', example: 'contemporâneo' })
   @IsOptional()
-  @IsNumber()
-  area?: number;
+  @IsString()
+  architectureStyle?: string;
 
-  @ApiPropertyOptional({ example: 'Jardins' })
+  @ApiPropertyOptional({ description: 'ID do imóvel associado' })
+  @IsOptional()
+  @IsUUID()
+  propertyId?: string;
+}
+
+export class DescriptionDto {
+  @ApiProperty({ description: 'Título do imóvel', example: 'Casa moderna com piscina' })
+  @IsNotEmpty()
+  @IsString()
+  title: string;
+
+  @ApiPropertyOptional({ description: 'Tipo do imóvel', example: 'casa' })
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @ApiPropertyOptional({ description: 'Área em m²', example: '250' })
+  @IsOptional()
+  @IsString()
+  area?: string;
+
+  @ApiPropertyOptional({ description: 'Quartos', example: '3' })
+  @IsOptional()
+  @IsString()
+  bedrooms?: string;
+
+  @ApiPropertyOptional({ description: 'Banheiros', example: '2' })
+  @IsOptional()
+  @IsString()
+  bathrooms?: string;
+
+  @ApiPropertyOptional({ description: 'Vagas', example: '2' })
+  @IsOptional()
+  @IsString()
+  parkingSpots?: string;
+
+  @ApiPropertyOptional({ description: 'Bairro', example: 'Jardins' })
   @IsOptional()
   @IsString()
   neighborhood?: string;
 
-  @ApiPropertyOptional({ example: 'São Paulo' })
+  @ApiPropertyOptional({ description: 'Cidade', example: 'São Paulo' })
   @IsOptional()
   @IsString()
   city?: string;
 
-  @ApiPropertyOptional({ example: ['Piscina', 'Churrasqueira', 'Varanda Gourmet'] })
-  @IsOptional()
-  @IsArray()
-  features?: string[];
-
-  @ApiPropertyOptional({ example: 850000 })
-  @IsOptional()
-  @IsNumber()
-  price?: number;
-
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Características extras', example: 'piscina, churrasqueira' })
   @IsOptional()
   @IsString()
-  additionalInfo?: string;
-}
+  features?: string;
 
-export class GenerateStagingDto {
-  @ApiProperty({ example: 'modern', description: 'Estilo: modern, classic, minimalist, industrial, scandinavian' })
-  @IsString()
-  style: string;
-
-  @ApiProperty({ example: 'living_room', description: 'Tipo: living_room, bedroom, kitchen, bathroom, office' })
-  @IsString()
-  roomType: string;
-
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Tom do texto', example: 'profissional' })
   @IsOptional()
   @IsString()
-  additionalInstructions?: string;
-}
+  tone?: string;
 
-export class GenerateTerrainVisionDto {
-  @ApiProperty({ example: 'residential_house', description: 'Tipo: residential_house, apartment_building, commercial' })
-  @IsString()
-  buildingType: string;
-
-  @ApiProperty({ example: 'modern', description: 'Estilo: modern, colonial, contemporary, minimalist' })
-  @IsString()
-  style: string;
-
-  @ApiPropertyOptional({ example: 2 })
+  @ApiPropertyOptional({ description: 'ID do imóvel associado' })
   @IsOptional()
-  @IsNumber()
-  floors?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  additionalInstructions?: string;
+  @IsUUID()
+  propertyId?: string;
 }
 
 export class PhotoEnhanceDto {
-  @ApiProperty({ example: 'lighting', description: 'Tipo: lighting, sky_replacement, declutter, color_correction, hdr' })
+  @ApiProperty({ description: 'URL da imagem original' })
+  @IsNotEmpty()
   @IsString()
-  enhancementType: string;
+  imageUrl: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Tipo de melhoria', example: 'iluminação' })
   @IsOptional()
   @IsString()
-  additionalInstructions?: string;
+  enhanceType?: string;
+
+  @ApiPropertyOptional({ description: 'ID do imóvel associado' })
+  @IsOptional()
+  @IsUUID()
+  propertyId?: string;
 }
 
-export class ChatAssistantDto {
-  @ApiProperty({ example: 'Como posso melhorar a apresentação deste imóvel?' })
+export class ChatDto {
+  @ApiProperty({ description: 'Mensagem do utilizador', example: 'Como posso vender mais rápido?' })
+  @IsNotEmpty()
   @IsString()
   message: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Histórico de mensagens anteriores', type: [Object] })
   @IsOptional()
-  @IsString()
-  context?: string;
+  history?: Array<{ role: string; content: string }>;
 }

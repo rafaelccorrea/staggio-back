@@ -3,10 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { GenerationsService } from './generations.service';
 import { GenerationsController } from './generations.controller';
 import { Generation } from './entities/generation.entity';
-import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Generation]), AuthModule],
+  imports: [TypeOrmModule.forFeature([Generation])],
   controllers: [GenerationsController],
   providers: [GenerationsService],
   exports: [GenerationsService],

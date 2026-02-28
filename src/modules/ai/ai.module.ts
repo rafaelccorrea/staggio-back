@@ -2,15 +2,11 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiService } from './ai.service';
 import { AiController } from './ai.controller';
+import { User } from '../users/entities/user.entity';
 import { Generation } from '../generations/entities/generation.entity';
-import { Subscription } from '../subscriptions/entities/subscription.entity';
-import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Generation, Subscription]),
-    AuthModule,
-  ],
+  imports: [TypeOrmModule.forFeature([User, Generation])],
   controllers: [AiController],
   providers: [AiService],
   exports: [AiService],

@@ -1,135 +1,215 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
-import { UsersService } from '../users/users.service';
-import { SubscriptionPlan } from '../subscriptions/entities/subscription.entity';
+import { SubscriptionStatus } from '../subscriptions/entities/subscription.entity';
+import { UserPlan } from '../users/entities/user.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class StripeService {
+  private readonly logger = new Logger(StripeService.name);
   private stripe: Stripe;
 
   constructor(
     private configService: ConfigService,
     private subscriptionsService: SubscriptionsService,
-    private usersService: UsersService,
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
   ) {
     this.stripe = new Stripe(
-      this.configService.get('STRIPE_SECRET_KEY', 'sk_test_placeholder'),
+      this.configService.get<string>('STRIPE_SECRET_KEY'),
       { apiVersion: '2023-10-16' as any },
     );
   }
 
-  async createCustomer(user: User): Promise<string> {
-    const customer = await this.stripe.customers.create({
-      email: user.email,
-      name: user.name,
-      metadata: { userId: user.id },
-    });
+  /**
+   * Criar sessão de checkout para assinatura
+   */
+  async createCheckoutSession(userId: string, plan: string) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
 
-    await this.usersService.updateStripeCustomerId(user.id, customer.id);
-    return customer.id;
-  }
-
-  async createCheckoutSession(
-    user: User,
-    plan: 'starter' | 'pro' | 'agency',
-  ): Promise<{ url: string }> {
-    let customerId = user.stripeCustomerId;
-
-    if (!customerId) {
-      customerId = await this.createCustomer(user);
+    if (!user) {
+      throw new Error('Utilizador não encontrado');
     }
 
-    const priceIdMap: Record<string, string> = {
-      starter: this.configService.get('STRIPE_STARTER_PRICE_ID', 'price_starter'),
-      pro: this.configService.get('STRIPE_PRO_PRICE_ID', 'price_pro'),
-      agency: this.configService.get('STRIPE_AGENCY_PRICE_ID', 'price_agency'),
+    // Criar ou obter customer no Stripe
+    let customerId = user.stripeCustomerId;
+    if (!customerId) {
+      const customer = await this.stripe.customers.create({
+        email: user.email,
+        name: user.name,
+        metadata: { userId: user.id },
+      });
+      customerId = customer.id;
+      await this.usersRepository.update(userId, { stripeCustomerId: customerId });
+    }
+
+    // Mapear plano para price ID
+    const priceMap: Record<string, string> = {
+      starter: this.configService.get<string>('STRIPE_STARTER_PRICE_ID'),
+      pro: this.configService.get<string>('STRIPE_PRO_PRICE_ID'),
+      agency: this.configService.get<string>('STRIPE_AGENCY_PRICE_ID'),
     };
 
-    const priceId = priceIdMap[plan];
+    const priceId = priceMap[plan];
     if (!priceId) {
-      throw new BadRequestException('Plano inválido');
+      throw new Error('Plano inválido');
     }
 
     const session = await this.stripe.checkout.sessions.create({
       customer: customerId,
+      mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
-      mode: 'subscription',
-      success_url: `${this.configService.get('FRONTEND_URL')}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${this.configService.get('FRONTEND_URL')}/subscription/cancel`,
-      metadata: { userId: user.id, plan },
+      success_url: `${this.configService.get('APP_URL')}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${this.configService.get('APP_URL')}/subscription/cancel`,
+      metadata: { userId, plan },
     });
 
-    return { url: session.url! };
+    return { url: session.url, sessionId: session.id };
   }
 
-  async createPortalSession(user: User): Promise<{ url: string }> {
-    if (!user.stripeCustomerId) {
-      throw new BadRequestException('Nenhuma assinatura ativa');
+  /**
+   * Criar portal de gestão de assinatura
+   */
+  async createPortalSession(userId: string) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+
+    if (!user?.stripeCustomerId) {
+      throw new Error('Utilizador sem assinatura ativa');
     }
 
     const session = await this.stripe.billingPortal.sessions.create({
       customer: user.stripeCustomerId,
-      return_url: `${this.configService.get('FRONTEND_URL')}/profile`,
+      return_url: `${this.configService.get('APP_URL')}/profile`,
     });
 
-    return { url: session.url! };
+    return { url: session.url };
   }
 
-  async handleWebhook(payload: Buffer, signature: string): Promise<void> {
-    const webhookSecret = this.configService.get('STRIPE_WEBHOOK_SECRET');
-    
+  /**
+   * Processar webhook do Stripe
+   */
+  async handleWebhook(signature: string, payload: Buffer) {
+    const webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
+
     let event: Stripe.Event;
     try {
       event = this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
     } catch (err) {
-      throw new BadRequestException('Webhook signature verification failed');
+      this.logger.error(`Webhook signature verification failed: ${err.message}`);
+      throw new Error('Webhook signature verification failed');
     }
+
+    this.logger.log(`Processing webhook event: ${event.type}`);
 
     switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const userId = session.metadata?.userId;
-        const plan = session.metadata?.plan as SubscriptionPlan;
-        
-        if (userId && plan) {
-          await this.subscriptionsService.updateSubscription(
-            userId,
-            plan,
-            session.subscription as string,
-          );
-        }
+      case 'checkout.session.completed':
+        await this.handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
         break;
-      }
-
-      case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
-        // Handle subscription updates
+      case 'customer.subscription.updated':
+        await this.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
         break;
-      }
-
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
-        const customer = await this.stripe.customers.retrieve(
-          subscription.customer as string,
-        );
-        
-        if (customer && !customer.deleted) {
-          const userId = (customer as Stripe.Customer).metadata?.userId;
-          if (userId) {
-            await this.subscriptionsService.cancelSubscription(userId);
-          }
-        }
+      case 'customer.subscription.deleted':
+        await this.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
-      }
-
-      case 'invoice.payment_failed': {
-        // Handle failed payment
+      case 'invoice.payment_failed':
+        await this.handlePaymentFailed(event.data.object as Stripe.Invoice);
         break;
-      }
+      default:
+        this.logger.log(`Unhandled event type: ${event.type}`);
     }
+
+    return { received: true };
+  }
+
+  private async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+    const userId = session.metadata?.userId;
+    const plan = session.metadata?.plan as UserPlan;
+
+    if (!userId || !plan) return;
+
+    const subscription = await this.stripe.subscriptions.retrieve(
+      session.subscription as string,
+    );
+
+    await this.subscriptionsService.createOrUpdate(
+      userId,
+      subscription.id,
+      subscription.items.data[0].price.id,
+      plan,
+      SubscriptionStatus.ACTIVE,
+      new Date(subscription.current_period_start * 1000),
+      new Date(subscription.current_period_end * 1000),
+    );
+  }
+
+  private async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+    const customer = await this.stripe.customers.retrieve(
+      subscription.customer as string,
+    );
+
+    if ('deleted' in customer && customer.deleted) return;
+
+    const userId = (customer as Stripe.Customer).metadata?.userId;
+    if (!userId) return;
+
+    const priceId = subscription.items.data[0].price.id;
+    const plan = this.getPlanFromPriceId(priceId);
+
+    const statusMap: Record<string, SubscriptionStatus> = {
+      active: SubscriptionStatus.ACTIVE,
+      past_due: SubscriptionStatus.PAST_DUE,
+      canceled: SubscriptionStatus.CANCELED,
+      trialing: SubscriptionStatus.TRIALING,
+      incomplete: SubscriptionStatus.INCOMPLETE,
+    };
+
+    await this.subscriptionsService.createOrUpdate(
+      userId,
+      subscription.id,
+      priceId,
+      plan,
+      statusMap[subscription.status] || SubscriptionStatus.ACTIVE,
+      new Date(subscription.current_period_start * 1000),
+      new Date(subscription.current_period_end * 1000),
+    );
+  }
+
+  private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+    const customer = await this.stripe.customers.retrieve(
+      subscription.customer as string,
+    );
+
+    if ('deleted' in customer && customer.deleted) return;
+
+    const userId = (customer as Stripe.Customer).metadata?.userId;
+    if (!userId) return;
+
+    await this.subscriptionsService.createOrUpdate(
+      userId,
+      subscription.id,
+      subscription.items.data[0].price.id,
+      UserPlan.FREE,
+      SubscriptionStatus.CANCELED,
+    );
+  }
+
+  private async handlePaymentFailed(invoice: Stripe.Invoice) {
+    this.logger.warn(`Payment failed for invoice: ${invoice.id}`);
+  }
+
+  private getPlanFromPriceId(priceId: string): UserPlan {
+    const starterPriceId = this.configService.get<string>('STRIPE_STARTER_PRICE_ID');
+    const proPriceId = this.configService.get<string>('STRIPE_PRO_PRICE_ID');
+    const agencyPriceId = this.configService.get<string>('STRIPE_AGENCY_PRICE_ID');
+
+    if (priceId === starterPriceId) return UserPlan.STARTER;
+    if (priceId === proPriceId) return UserPlan.PRO;
+    if (priceId === agencyPriceId) return UserPlan.AGENCY;
+    return UserPlan.FREE;
   }
 }

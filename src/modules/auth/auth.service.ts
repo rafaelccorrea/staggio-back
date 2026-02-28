@@ -1,14 +1,15 @@
 import {
   Injectable,
-  UnauthorizedException,
   ConflictException,
+  UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { User } from '../users/entities/user.entity';
-import { Subscription, SubscriptionPlan, SubscriptionStatus } from '../subscriptions/entities/subscription.entity';
 import { RegisterDto, LoginDto } from './dto/register.dto';
 
 @Injectable()
@@ -16,9 +17,8 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
-    @InjectRepository(Subscription)
-    private subscriptionsRepository: Repository<Subscription>,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -27,10 +27,10 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email já está em uso');
+      throw new ConflictException('Este email já está registado');
     }
 
-    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+    const hashedPassword = await bcrypt.hash(registerDto.password, 12);
 
     const user = this.usersRepository.create({
       ...registerDto,
@@ -38,33 +38,27 @@ export class AuthService {
     });
 
     const savedUser = await this.usersRepository.save(user);
+    const tokens = await this.generateTokens(savedUser);
 
-    // Create free subscription
-    const subscription = this.subscriptionsRepository.create({
-      userId: savedUser.id,
-      plan: SubscriptionPlan.FREE,
-      status: SubscriptionStatus.ACTIVE,
-      aiCreditsLimit: 5,
-      aiCreditsUsed: 0,
-    });
-    await this.subscriptionsRepository.save(subscription);
-
-    const token = this.generateToken(savedUser);
+    const { password, ...userWithoutPassword } = savedUser;
 
     return {
-      accessToken: token,
-      user: this.formatUser(savedUser, subscription),
+      ...tokens,
+      user: userWithoutPassword,
     };
   }
 
   async login(loginDto: LoginDto) {
     const user = await this.usersRepository.findOne({
       where: { email: loginDto.email },
-      relations: ['subscription'],
     });
 
     if (!user) {
       throw new UnauthorizedException('Credenciais inválidas');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Conta desativada');
     }
 
     const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
@@ -73,48 +67,66 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    if (!user.isActive) {
-      throw new UnauthorizedException('Conta desativada');
-    }
-
-    const token = this.generateToken(user);
+    const tokens = await this.generateTokens(user);
+    const { password, ...userWithoutPassword } = user;
 
     return {
-      accessToken: token,
-      user: this.formatUser(user, user.subscription),
+      ...tokens,
+      user: userWithoutPassword,
     };
   }
 
-  async validateUser(userId: string): Promise<User> {
+  async refreshToken(refreshToken: string) {
+    try {
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get<string>('JWT_SECRET'),
+      });
+
+      const user = await this.usersRepository.findOne({
+        where: { id: payload.sub, isActive: true },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('Utilizador não encontrado');
+      }
+
+      const tokens = await this.generateTokens(user);
+      const { password, ...userWithoutPassword } = user;
+
+      return {
+        ...tokens,
+        user: userWithoutPassword,
+      };
+    } catch {
+      throw new UnauthorizedException('Refresh token inválido ou expirado');
+    }
+  }
+
+  async getProfile(userId: string) {
     const user = await this.usersRepository.findOne({
       where: { id: userId },
       relations: ['subscription'],
     });
 
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException('Utilizador não encontrado ou inativo');
+    if (!user) {
+      throw new BadRequestException('Utilizador não encontrado');
     }
 
-    return user;
+    const { password, ...userWithoutPassword } = user;
+    return userWithoutPassword;
   }
 
-  private generateToken(user: User): string {
+  private async generateTokens(user: User) {
     const payload = { sub: user.id, email: user.email, role: user.role };
-    return this.jwtService.sign(payload);
-  }
 
-  private formatUser(user: User, subscription?: Subscription) {
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      creci: user.creci,
-      avatarUrl: user.avatarUrl,
-      plan: subscription?.plan || 'free',
-      aiCreditsUsed: subscription?.aiCreditsUsed || 0,
-      aiCreditsLimit: subscription?.aiCreditsLimit || 5,
-    };
+    const accessToken = this.jwtService.sign(payload, {
+      expiresIn: this.configService.get<string>('JWT_EXPIRATION', '7d'),
+    });
+
+    const refreshToken = this.jwtService.sign(payload, {
+      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION', '30d'),
+    });
+
+    return { accessToken, refreshToken };
   }
 }

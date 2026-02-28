@@ -1,73 +1,86 @@
 import {
-  Controller, Get, Post, Put, Delete,
-  Body, Param, Query, UseGuards,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { PropertiesService } from './properties.service';
+import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
-import { CreatePropertyDto, UpdatePropertyDto } from './dto/property.dto';
 
 @ApiTags('properties')
-@Controller('properties')
-@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
+@Controller('properties')
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
   @Post()
   @ApiOperation({ summary: 'Criar novo imóvel' })
+  @ApiResponse({ status: 201, description: 'Imóvel criado com sucesso' })
   async create(
     @CurrentUser() user: User,
-    @Body() dto: CreatePropertyDto,
+    @Body() createPropertyDto: CreatePropertyDto,
   ) {
-    return this.propertiesService.create(user, dto);
+    return this.propertiesService.create(user.id, createPropertyDto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar imóveis do utilizador' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Lista de imóveis com paginação' })
   async findAll(
     @CurrentUser() user: User,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @Query() query: PropertyQueryDto,
   ) {
-    return this.propertiesService.findAll(user, page, limit);
-  }
-
-  @Get('stats')
-  @ApiOperation({ summary: 'Estatísticas dos imóveis' })
-  async getStats(@CurrentUser() user: User) {
-    return this.propertiesService.getStats(user);
+    return this.propertiesService.findAll(user.id, query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obter detalhes de um imóvel' })
+  @ApiParam({ name: 'id', description: 'ID do imóvel' })
+  @ApiResponse({ status: 200, description: 'Detalhes do imóvel' })
+  @ApiResponse({ status: 404, description: 'Imóvel não encontrado' })
   async findOne(
-    @Param('id') id: string,
     @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.propertiesService.findOne(id, user);
+    return this.propertiesService.findOne(user.id, id);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @ApiOperation({ summary: 'Atualizar imóvel' })
+  @ApiParam({ name: 'id', description: 'ID do imóvel' })
+  @ApiResponse({ status: 200, description: 'Imóvel atualizado com sucesso' })
   async update(
-    @Param('id') id: string,
     @CurrentUser() user: User,
-    @Body() dto: UpdatePropertyDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updatePropertyDto: UpdatePropertyDto,
   ) {
-    return this.propertiesService.update(id, user, dto);
+    return this.propertiesService.update(user.id, id, updatePropertyDto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Remover imóvel' })
+  @ApiParam({ name: 'id', description: 'ID do imóvel' })
+  @ApiResponse({ status: 200, description: 'Imóvel removido com sucesso' })
   async remove(
-    @Param('id') id: string,
     @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.propertiesService.remove(id, user);
+    await this.propertiesService.remove(user.id, id);
+    return { message: 'Imóvel removido com sucesso' };
   }
 }
