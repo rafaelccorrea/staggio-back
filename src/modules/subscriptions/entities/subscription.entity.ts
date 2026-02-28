@@ -33,11 +33,11 @@ export class Subscription {
   stripePriceId: string;
 
   @ApiProperty({ description: 'Plano', enum: UserPlan })
-  @Column({ type: 'enum', enum: UserPlan })
+  @Column({ type: 'varchar', length: 20 })
   plan: UserPlan;
 
   @ApiProperty({ description: 'Status', enum: SubscriptionStatus })
-  @Column({ type: 'enum', enum: SubscriptionStatus, default: SubscriptionStatus.ACTIVE })
+  @Column({ type: 'varchar', length: 30, default: SubscriptionStatus.ACTIVE })
   status: SubscriptionStatus;
 
   @ApiProperty({ description: 'Data de início do período atual' })

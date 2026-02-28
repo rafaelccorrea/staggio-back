@@ -47,11 +47,11 @@ export class Property {
   aiDescription: string;
 
   @ApiProperty({ description: 'Tipo do imóvel', enum: PropertyType })
-  @Column({ type: 'enum', enum: PropertyType, default: PropertyType.HOUSE })
+  @Column({ type: 'varchar', length: 20, default: PropertyType.HOUSE })
   type: PropertyType;
 
   @ApiProperty({ description: 'Status', enum: PropertyStatus })
-  @Column({ type: 'enum', enum: PropertyStatus, default: PropertyStatus.AVAILABLE })
+  @Column({ type: 'varchar', length: 20, default: PropertyStatus.AVAILABLE })
   status: PropertyStatus;
 
   @ApiProperty({ description: 'Preço', required: false })

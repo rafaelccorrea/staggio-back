@@ -32,11 +32,11 @@ export class Generation {
   id: string;
 
   @ApiProperty({ description: 'Tipo de geração', enum: GenerationType })
-  @Column({ type: 'enum', enum: GenerationType })
+  @Column({ type: 'varchar', length: 30 })
   type: GenerationType;
 
   @ApiProperty({ description: 'Status da geração', enum: GenerationStatus })
-  @Column({ type: 'enum', enum: GenerationStatus, default: GenerationStatus.PENDING })
+  @Column({ type: 'varchar', length: 20, default: GenerationStatus.PENDING })
   status: GenerationStatus;
 
   @ApiProperty({ description: 'URL da imagem de entrada', required: false })

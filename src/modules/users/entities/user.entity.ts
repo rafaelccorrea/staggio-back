@@ -57,11 +57,11 @@ export class User {
   avatarUrl: string;
 
   @ApiProperty({ description: 'Papel do utilizador', enum: UserRole })
-  @Column({ type: 'enum', enum: UserRole, default: UserRole.CORRETOR })
+  @Column({ type: 'varchar', length: 20, default: UserRole.CORRETOR })
   role: UserRole;
 
   @ApiProperty({ description: 'Plano atual', enum: UserPlan })
-  @Column({ type: 'enum', enum: UserPlan, default: UserPlan.FREE })
+  @Column({ type: 'varchar', length: 20, default: UserPlan.FREE })
   plan: UserPlan;
 
   @ApiProperty({ description: 'Créditos de IA utilizados no mês' })
