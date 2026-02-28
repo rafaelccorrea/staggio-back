@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Like, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { Property } from './entities/property.entity';
-import { User } from '../users/entities/user.entity';
+import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
 
 @Injectable()
 export class PropertiesService {
@@ -11,27 +11,71 @@ export class PropertiesService {
     private propertiesRepository: Repository<Property>,
   ) {}
 
-  async create(user: User, data: Partial<Property>): Promise<Property> {
+  async create(userId: string, createPropertyDto: CreatePropertyDto): Promise<Property> {
     const property = this.propertiesRepository.create({
-      ...data,
-      userId: user.id,
+      ...createPropertyDto,
+      userId,
     });
+
     return this.propertiesRepository.save(property);
   }
 
-  async findAll(user: User, page = 1, limit = 20): Promise<{ data: Property[]; total: number }> {
-    const [data, total] = await this.propertiesRepository.findAndCount({
-      where: { userId: user.id },
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
-    return { data, total };
+  async findAll(userId: string, query: PropertyQueryDto) {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const skip = (page - 1) * limit;
+
+    const qb = this.propertiesRepository
+      .createQueryBuilder('property')
+      .where('property.user_id = :userId', { userId });
+
+    if (query.search) {
+      qb.andWhere(
+        '(property.title ILIKE :search OR property.address ILIKE :search OR property.city ILIKE :search)',
+        { search: `%${query.search}%` },
+      );
+    }
+
+    if (query.type) {
+      qb.andWhere('property.type = :type', { type: query.type });
+    }
+
+    if (query.status) {
+      qb.andWhere('property.status = :status', { status: query.status });
+    }
+
+    if (query.minPrice) {
+      qb.andWhere('property.price >= :minPrice', { minPrice: query.minPrice });
+    }
+
+    if (query.maxPrice) {
+      qb.andWhere('property.price <= :maxPrice', { maxPrice: query.maxPrice });
+    }
+
+    if (query.city) {
+      qb.andWhere('property.city ILIKE :city', { city: `%${query.city}%` });
+    }
+
+    qb.orderBy('property.created_at', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
-  async findOne(id: string, user: User): Promise<Property> {
+  async findOne(userId: string, id: string): Promise<Property> {
     const property = await this.propertiesRepository.findOne({
-      where: { id },
+      where: { id, userId },
       relations: ['generations'],
     });
 
@@ -39,39 +83,25 @@ export class PropertiesService {
       throw new NotFoundException('Imóvel não encontrado');
     }
 
-    if (property.userId !== user.id) {
-      throw new ForbiddenException('Sem permissão para acessar este imóvel');
-    }
-
     return property;
   }
 
-  async update(id: string, user: User, data: Partial<Property>): Promise<Property> {
-    const property = await this.findOne(id, user);
-    Object.assign(property, data);
+  async update(
+    userId: string,
+    id: string,
+    updatePropertyDto: UpdatePropertyDto,
+  ): Promise<Property> {
+    const property = await this.findOne(userId, id);
+    Object.assign(property, updatePropertyDto);
     return this.propertiesRepository.save(property);
   }
 
-  async remove(id: string, user: User): Promise<void> {
-    const property = await this.findOne(id, user);
+  async remove(userId: string, id: string): Promise<void> {
+    const property = await this.findOne(userId, id);
     await this.propertiesRepository.remove(property);
   }
 
-  async addImages(id: string, user: User, imageUrls: string[]): Promise<Property> {
-    const property = await this.findOne(id, user);
-    property.images = [...(property.images || []), ...imageUrls];
-    return this.propertiesRepository.save(property);
-  }
-
-  async getStats(user: User) {
-    const total = await this.propertiesRepository.count({ where: { userId: user.id } });
-    const available = await this.propertiesRepository.count({ 
-      where: { userId: user.id, status: 'available' as any } 
-    });
-    const sold = await this.propertiesRepository.count({ 
-      where: { userId: user.id, status: 'sold' as any } 
-    });
-    
-    return { total, available, sold, rented: total - available - sold };
+  async countByUser(userId: string): Promise<number> {
+    return this.propertiesRepository.count({ where: { userId } });
   }
 }

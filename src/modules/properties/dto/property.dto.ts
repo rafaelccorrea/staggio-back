@@ -1,81 +1,150 @@
-import { IsString, IsOptional, IsNumber, IsArray, IsEnum } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsArray,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { PropertyType, PropertyStatus } from '../entities/property.entity';
 
 export class CreatePropertyDto {
-  @ApiProperty({ example: 'Apartamento Luxo Jardins' })
+  @ApiProperty({ description: 'Título do imóvel', example: 'Casa moderna com piscina' })
+  @IsNotEmpty({ message: 'Título é obrigatório' })
   @IsString()
+  @MaxLength(255)
   title: string;
 
-  @ApiPropertyOptional({ example: 'Lindo apartamento com vista panorâmica' })
+  @ApiPropertyOptional({ description: 'Descrição do imóvel' })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ enum: PropertyType })
+  @ApiPropertyOptional({ description: 'Tipo do imóvel', enum: PropertyType })
   @IsOptional()
   @IsEnum(PropertyType)
   type?: PropertyType;
 
-  @ApiPropertyOptional({ example: 850000 })
+  @ApiPropertyOptional({ description: 'Preço', example: 850000 })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   price?: number;
 
-  @ApiPropertyOptional({ example: 120 })
+  @ApiPropertyOptional({ description: 'Área em m²', example: 250 })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   area?: number;
 
-  @ApiPropertyOptional({ example: 3 })
+  @ApiPropertyOptional({ description: 'Quartos', example: 3 })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   bedrooms?: number;
 
-  @ApiPropertyOptional({ example: 2 })
+  @ApiPropertyOptional({ description: 'Banheiros', example: 2 })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   bathrooms?: number;
 
-  @ApiPropertyOptional({ example: 2 })
+  @ApiPropertyOptional({ description: 'Vagas de garagem', example: 2 })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   parkingSpots?: number;
 
-  @ApiPropertyOptional({ example: 'Rua Augusta, 1500' })
+  @ApiPropertyOptional({ description: 'Endereço', example: 'Rua das Flores, 123' })
   @IsOptional()
   @IsString()
   address?: string;
 
-  @ApiPropertyOptional({ example: 'São Paulo' })
+  @ApiPropertyOptional({ description: 'Cidade', example: 'São Paulo' })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   city?: string;
 
-  @ApiPropertyOptional({ example: 'SP' })
+  @ApiPropertyOptional({ description: 'Estado', example: 'SP' })
   @IsOptional()
   @IsString()
+  @MaxLength(2)
   state?: string;
 
-  @ApiPropertyOptional({ example: '01310-100' })
+  @ApiPropertyOptional({ description: 'Bairro', example: 'Jardins' })
   @IsOptional()
   @IsString()
-  zipCode?: string;
-
-  @ApiPropertyOptional({ example: 'Jardins' })
-  @IsOptional()
-  @IsString()
+  @MaxLength(100)
   neighborhood?: string;
 
-  @ApiPropertyOptional({ example: ['Piscina', 'Churrasqueira'] })
+  @ApiPropertyOptional({ description: 'CEP', example: '01234-567' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  zipCode?: string;
+
+  @ApiPropertyOptional({ description: 'URLs das imagens', type: [String] })
+  @IsOptional()
+  @IsArray()
+  images?: string[];
+
+  @ApiPropertyOptional({ description: 'Características', type: [String] })
   @IsOptional()
   @IsArray()
   features?: string[];
 }
 
-export class UpdatePropertyDto extends CreatePropertyDto {
-  @ApiPropertyOptional({ enum: PropertyStatus })
+export class UpdatePropertyDto extends PartialType(CreatePropertyDto) {
+  @ApiPropertyOptional({ description: 'Status do imóvel', enum: PropertyStatus })
   @IsOptional()
   @IsEnum(PropertyStatus)
   status?: PropertyStatus;
+}
+
+export class PropertyQueryDto {
+  @ApiPropertyOptional({ description: 'Busca por título ou endereço' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ description: 'Filtrar por tipo', enum: PropertyType })
+  @IsOptional()
+  @IsEnum(PropertyType)
+  type?: PropertyType;
+
+  @ApiPropertyOptional({ description: 'Filtrar por status', enum: PropertyStatus })
+  @IsOptional()
+  @IsEnum(PropertyStatus)
+  status?: PropertyStatus;
+
+  @ApiPropertyOptional({ description: 'Preço mínimo' })
+  @IsOptional()
+  @IsNumber()
+  minPrice?: number;
+
+  @ApiPropertyOptional({ description: 'Preço máximo' })
+  @IsOptional()
+  @IsNumber()
+  maxPrice?: number;
+
+  @ApiPropertyOptional({ description: 'Cidade' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({ description: 'Página', default: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ description: 'Itens por página', default: 20 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  limit?: number;
 }

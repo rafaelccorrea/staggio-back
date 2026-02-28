@@ -1,136 +1,135 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PropertiesService } from './properties.service';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { Property, PropertyType, PropertyStatus } from './entities/property.entity';
-import { User, UserRole } from '../users/entities/user.entity';
+import { NotFoundException } from '@nestjs/common';
+
+const mockProperty: Partial<Property> = {
+  id: 'prop-uuid-123',
+  title: 'Casa moderna',
+  type: PropertyType.HOUSE,
+  status: PropertyStatus.AVAILABLE,
+  price: 850000,
+  area: 250,
+  bedrooms: 3,
+  bathrooms: 2,
+  city: 'São Paulo',
+  userId: 'uuid-123',
+};
+
+const mockQueryBuilder = {
+  where: jest.fn().mockReturnThis(),
+  andWhere: jest.fn().mockReturnThis(),
+  orderBy: jest.fn().mockReturnThis(),
+  skip: jest.fn().mockReturnThis(),
+  take: jest.fn().mockReturnThis(),
+  getManyAndCount: jest.fn().mockResolvedValue([[mockProperty], 1]),
+};
+
+const mockPropertiesRepository = {
+  create: jest.fn().mockReturnValue(mockProperty),
+  save: jest.fn().mockResolvedValue(mockProperty),
+  findOne: jest.fn(),
+  remove: jest.fn().mockResolvedValue(undefined),
+  count: jest.fn().mockResolvedValue(5),
+  createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
+};
 
 describe('PropertiesService', () => {
   let service: PropertiesService;
-  let repository: any;
-
-  const mockUser: Partial<User> = {
-    id: 'user-uuid-1',
-    name: 'João Silva',
-    email: 'joao@email.com',
-    role: UserRole.CORRETOR,
-  };
-
-  const mockProperty: Partial<Property> = {
-    id: 'prop-uuid-1',
-    title: 'Apartamento Jardins',
-    type: PropertyType.APARTMENT,
-    status: PropertyStatus.AVAILABLE,
-    price: 850000,
-    area: 120,
-    bedrooms: 3,
-    bathrooms: 2,
-    userId: 'user-uuid-1',
-    images: [],
-    features: ['Piscina', 'Churrasqueira'],
-  };
 
   beforeEach(async () => {
-    repository = {
-      create: jest.fn().mockReturnValue(mockProperty),
-      save: jest.fn().mockResolvedValue(mockProperty),
-      findOne: jest.fn().mockResolvedValue(mockProperty),
-      findAndCount: jest.fn().mockResolvedValue([[mockProperty], 1]),
-      remove: jest.fn().mockResolvedValue(undefined),
-      count: jest.fn().mockResolvedValue(5),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PropertiesService,
-        { provide: getRepositoryToken(Property), useValue: repository },
+        { provide: getRepositoryToken(Property), useValue: mockPropertiesRepository },
       ],
     }).compile();
 
     service = module.get<PropertiesService>(PropertiesService);
+    jest.clearAllMocks();
+  });
+
+  it('deve estar definido', () => {
+    expect(service).toBeDefined();
   });
 
   describe('create', () => {
     it('deve criar um imóvel com sucesso', async () => {
-      const result = await service.create(mockUser as User, {
-        title: 'Apartamento Jardins',
-        type: PropertyType.APARTMENT,
+      const result = await service.create('uuid-123', {
+        title: 'Casa moderna',
+        type: PropertyType.HOUSE,
         price: 850000,
       });
 
-      expect(repository.create).toHaveBeenCalled();
-      expect(repository.save).toHaveBeenCalled();
-      expect(result.title).toBe('Apartamento Jardins');
+      expect(result).toHaveProperty('id');
+      expect(mockPropertiesRepository.create).toHaveBeenCalled();
+      expect(mockPropertiesRepository.save).toHaveBeenCalled();
     });
   });
 
   describe('findAll', () => {
-    it('deve listar imóveis do utilizador', async () => {
-      const result = await service.findAll(mockUser as User);
+    it('deve listar imóveis com paginação', async () => {
+      const result = await service.findAll('uuid-123', { page: 1, limit: 20 });
 
-      expect(result.data).toHaveLength(1);
-      expect(result.total).toBe(1);
+      expect(result).toHaveProperty('data');
+      expect(result).toHaveProperty('meta');
+      expect(result.meta.total).toBe(1);
+      expect(mockPropertiesRepository.createQueryBuilder).toHaveBeenCalled();
     });
 
-    it('deve suportar paginação', async () => {
-      await service.findAll(mockUser as User, 2, 10);
+    it('deve filtrar por tipo', async () => {
+      await service.findAll('uuid-123', { type: PropertyType.HOUSE });
 
-      expect(repository.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          skip: 10,
-          take: 10,
-        }),
-      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalled();
     });
   });
 
   describe('findOne', () => {
-    it('deve retornar um imóvel', async () => {
-      const result = await service.findOne('prop-uuid-1', mockUser as User);
-      expect(result.id).toBe('prop-uuid-1');
+    it('deve encontrar um imóvel por ID', async () => {
+      mockPropertiesRepository.findOne.mockResolvedValue(mockProperty);
+
+      const result = await service.findOne('uuid-123', 'prop-uuid-123');
+
+      expect(result).toHaveProperty('id', 'prop-uuid-123');
     });
 
-    it('deve lançar NotFoundException se não encontrar', async () => {
-      repository.findOne.mockResolvedValue(null);
+    it('deve lançar NotFoundException se imóvel não existe', async () => {
+      mockPropertiesRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.findOne('invalid-uuid', mockUser as User),
+        service.findOne('uuid-123', 'nao-existe'),
       ).rejects.toThrow(NotFoundException);
-    });
-
-    it('deve lançar ForbiddenException se não for dono', async () => {
-      repository.findOne.mockResolvedValue({
-        ...mockProperty,
-        userId: 'outro-user',
-      });
-
-      await expect(
-        service.findOne('prop-uuid-1', mockUser as User),
-      ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('update', () => {
     it('deve atualizar um imóvel', async () => {
-      const result = await service.update('prop-uuid-1', mockUser as User, {
-        title: 'Novo Título',
+      mockPropertiesRepository.findOne.mockResolvedValue(mockProperty);
+
+      const result = await service.update('uuid-123', 'prop-uuid-123', {
+        title: 'Casa atualizada',
       });
 
-      expect(repository.save).toHaveBeenCalled();
+      expect(mockPropertiesRepository.save).toHaveBeenCalled();
     });
   });
 
   describe('remove', () => {
     it('deve remover um imóvel', async () => {
-      await service.remove('prop-uuid-1', mockUser as User);
-      expect(repository.remove).toHaveBeenCalled();
+      mockPropertiesRepository.findOne.mockResolvedValue(mockProperty);
+
+      await service.remove('uuid-123', 'prop-uuid-123');
+
+      expect(mockPropertiesRepository.remove).toHaveBeenCalled();
     });
   });
 
-  describe('getStats', () => {
-    it('deve retornar estatísticas', async () => {
-      const result = await service.getStats(mockUser as User);
-      expect(result.total).toBe(5);
+  describe('countByUser', () => {
+    it('deve contar imóveis do utilizador', async () => {
+      const result = await service.countByUser('uuid-123');
+
+      expect(result).toBe(5);
     });
   });
 });

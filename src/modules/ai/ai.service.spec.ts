@@ -1,16 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { AiService } from './ai.service';
 import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { User, UserPlan, UserRole } from '../users/entities/user.entity';
+import { Generation, GenerationType, GenerationStatus } from '../generations/entities/generation.entity';
 import { ForbiddenException } from '@nestjs/common';
-import { AiService } from './ai.service';
-import { Generation } from '../generations/entities/generation.entity';
-import { Subscription, SubscriptionPlan, SubscriptionStatus } from '../subscriptions/entities/subscription.entity';
-import { User, UserRole } from '../users/entities/user.entity';
 
+// Mock OpenAI
 jest.mock('openai', () => {
   const mockCreate = jest.fn().mockResolvedValue({
-    choices: [{ message: { content: 'Descrição gerada pela IA' } }],
-    usage: { prompt_tokens: 100, completion_tokens: 200 },
+    choices: [{ message: { content: 'AI generated text response' } }],
   });
   return {
     __esModule: true,
@@ -24,136 +23,179 @@ jest.mock('openai', () => {
   };
 });
 
+const mockUser: Partial<User> = {
+  id: 'uuid-123',
+  name: 'Test User',
+  email: 'test@staggio.com',
+  role: UserRole.CORRETOR,
+  plan: UserPlan.STARTER,
+  isActive: true,
+  aiCreditsUsed: 0,
+  aiCreditsLimit: 50,
+};
+
+const mockGeneration: Partial<Generation> = {
+  id: 'gen-uuid-123',
+  type: GenerationType.DESCRIPTION,
+  status: GenerationStatus.COMPLETED,
+  userId: 'uuid-123',
+};
+
+const mockUsersRepository = {
+  findOne: jest.fn(),
+  increment: jest.fn(),
+};
+
+const mockGenerationsRepository = {
+  create: jest.fn().mockReturnValue(mockGeneration),
+  save: jest.fn().mockResolvedValue(mockGeneration),
+};
+
+const mockConfigService = {
+  get: jest.fn().mockReturnValue('sk-test-key'),
+};
+
 describe('AiService', () => {
   let service: AiService;
-  let generationsRepository: any;
-  let subscriptionsRepository: any;
-
-  const mockUser: Partial<User> = {
-    id: 'user-uuid-1',
-    name: 'João Silva',
-    email: 'joao@email.com',
-    role: UserRole.CORRETOR,
-  };
-
-  const mockSubscription: Partial<Subscription> = {
-    id: 'sub-uuid-1',
-    plan: SubscriptionPlan.STARTER,
-    status: SubscriptionStatus.ACTIVE,
-    aiCreditsLimit: 20,
-    aiCreditsUsed: 5,
-    userId: 'user-uuid-1',
-  };
-
-  const mockGeneration: Partial<Generation> = {
-    id: 'gen-uuid-1',
-    userId: 'user-uuid-1',
-  };
 
   beforeEach(async () => {
-    generationsRepository = {
-      create: jest.fn().mockReturnValue(mockGeneration),
-      save: jest.fn().mockResolvedValue(mockGeneration),
-    };
-
-    subscriptionsRepository = {
-      findOne: jest.fn().mockResolvedValue(mockSubscription),
-      save: jest.fn().mockResolvedValue(mockSubscription),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AiService,
-        { provide: getRepositoryToken(Generation), useValue: generationsRepository },
-        { provide: getRepositoryToken(Subscription), useValue: subscriptionsRepository },
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn().mockReturnValue('test-api-key'),
-          },
-        },
+        { provide: getRepositoryToken(User), useValue: mockUsersRepository },
+        { provide: getRepositoryToken(Generation), useValue: mockGenerationsRepository },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
     service = module.get<AiService>(AiService);
+    jest.clearAllMocks();
   });
 
-  describe('checkCredits', () => {
-    it('deve lançar ForbiddenException quando sem créditos', async () => {
-      subscriptionsRepository.findOne.mockResolvedValue({
-        ...mockSubscription,
-        aiCreditsUsed: 20,
-        aiCreditsLimit: 20,
-      });
-
-      await expect(
-        service.generateDescription(mockUser as User, {
-          propertyType: 'Apartamento',
-        }),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('deve lançar ForbiddenException quando sem assinatura', async () => {
-      subscriptionsRepository.findOne.mockResolvedValue(null);
-
-      await expect(
-        service.generateDescription(mockUser as User, {
-          propertyType: 'Apartamento',
-        }),
-      ).rejects.toThrow(ForbiddenException);
-    });
+  it('deve estar definido', () => {
+    expect(service).toBeDefined();
   });
 
-  describe('generateDescription', () => {
-    it('deve criar uma geração com sucesso', async () => {
-      const result = await service.generateDescription(mockUser as User, {
-        propertyType: 'Apartamento',
-        bedrooms: 3,
-        bathrooms: 2,
-        area: 120,
-        neighborhood: 'Jardins',
+  describe('description', () => {
+    it('deve gerar descrição com sucesso', async () => {
+      mockUsersRepository.findOne.mockResolvedValue(mockUser);
+      mockUsersRepository.increment.mockResolvedValue(undefined);
+
+      const result = await service.description('uuid-123', {
+        title: 'Casa moderna',
+        type: 'casa',
+        bedrooms: '3',
         city: 'São Paulo',
       });
 
-      expect(generationsRepository.create).toHaveBeenCalled();
-      expect(generationsRepository.save).toHaveBeenCalled();
-      expect(result).toBeDefined();
+      expect(result).toHaveProperty('type', 'description');
+      expect(result).toHaveProperty('status', 'completed');
+      expect(result).toHaveProperty('outputText');
+      expect(mockGenerationsRepository.save).toHaveBeenCalled();
+    });
+
+    it('deve recusar se créditos insuficientes', async () => {
+      mockUsersRepository.findOne.mockResolvedValue({
+        ...mockUser,
+        aiCreditsUsed: 50,
+        aiCreditsLimit: 50,
+      });
+
+      await expect(
+        service.description('uuid-123', {
+          title: 'Casa moderna',
+        }),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
-  describe('generateStagingPrompt', () => {
-    it('deve gerar prompt de staging com sucesso', async () => {
-      const result = await service.generateStagingPrompt(mockUser as User, {
-        style: 'modern',
-        roomType: 'living_room',
+  describe('chat', () => {
+    it('deve responder ao chat com sucesso', async () => {
+      mockUsersRepository.findOne.mockResolvedValue(mockUser);
+      mockUsersRepository.increment.mockResolvedValue(undefined);
+
+      const result = await service.chat('uuid-123', {
+        message: 'Como vender mais rápido?',
       });
 
-      expect(generationsRepository.create).toHaveBeenCalled();
-      expect(result).toBeDefined();
+      expect(result).toHaveProperty('type', 'chat');
+      expect(result).toHaveProperty('message');
+      expect(mockGenerationsRepository.save).toHaveBeenCalled();
     });
   });
 
-  describe('generateTerrainVision', () => {
-    it('deve gerar visão de terreno com sucesso', async () => {
-      const result = await service.generateTerrainVision(mockUser as User, {
-        buildingType: 'residential_house',
-        style: 'modern',
-        floors: 2,
+  describe('staging', () => {
+    it('deve processar staging com sucesso', async () => {
+      mockUsersRepository.findOne.mockResolvedValue(mockUser);
+      mockUsersRepository.increment.mockResolvedValue(undefined);
+
+      const result = await service.staging('uuid-123', {
+        imageUrl: 'https://example.com/room.jpg',
+        style: 'moderno' as any,
       });
 
-      expect(generationsRepository.create).toHaveBeenCalled();
-      expect(result).toBeDefined();
+      expect(result).toHaveProperty('type', 'staging');
+      expect(result).toHaveProperty('status', 'completed');
+    });
+
+    it('deve recusar staging se conta desativada', async () => {
+      mockUsersRepository.findOne.mockResolvedValue({
+        ...mockUser,
+        isActive: false,
+      });
+
+      await expect(
+        service.staging('uuid-123', {
+          imageUrl: 'https://example.com/room.jpg',
+          style: 'moderno' as any,
+        }),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
-  describe('generatePhotoEnhancePrompt', () => {
-    it('deve gerar prompt de melhoria de foto', async () => {
-      const result = await service.generatePhotoEnhancePrompt(mockUser as User, {
-        enhancementType: 'lighting',
+  describe('terrainVision', () => {
+    it('deve processar visão de terreno com sucesso', async () => {
+      mockUsersRepository.findOne.mockResolvedValue(mockUser);
+      mockUsersRepository.increment.mockResolvedValue(undefined);
+
+      const result = await service.terrainVision('uuid-123', {
+        imageUrl: 'https://example.com/terrain.jpg',
+        buildingType: 'casa' as any,
       });
 
-      expect(generationsRepository.create).toHaveBeenCalled();
-      expect(result).toBeDefined();
+      expect(result).toHaveProperty('type', 'terrain_vision');
+      expect(result).toHaveProperty('status', 'completed');
+    });
+
+    it('deve consumir 3 créditos para visão de terreno', async () => {
+      mockUsersRepository.findOne.mockResolvedValue(mockUser);
+      mockUsersRepository.increment.mockResolvedValue(undefined);
+
+      const result = await service.terrainVision('uuid-123', {
+        imageUrl: 'https://example.com/terrain.jpg',
+        buildingType: 'casa' as any,
+      });
+
+      expect(result.creditsUsed).toBe(3);
+      expect(mockUsersRepository.increment).toHaveBeenCalledWith(
+        { id: 'uuid-123' },
+        'aiCreditsUsed',
+        3,
+      );
+    });
+  });
+
+  describe('photoEnhance', () => {
+    it('deve analisar foto com sucesso', async () => {
+      mockUsersRepository.findOne.mockResolvedValue(mockUser);
+      mockUsersRepository.increment.mockResolvedValue(undefined);
+
+      const result = await service.photoEnhance('uuid-123', {
+        imageUrl: 'https://example.com/photo.jpg',
+      });
+
+      expect(result).toHaveProperty('type', 'photo_enhance');
+      expect(result).toHaveProperty('status', 'completed');
     });
   });
 });

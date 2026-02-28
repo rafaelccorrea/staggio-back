@@ -1,10 +1,15 @@
 import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiBody,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto } from './dto/register.dto';
+import { RegisterDto, LoginDto, RefreshTokenDto, AuthResponseDto } from './dto/register.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
 
 @ApiTags('auth')
@@ -15,22 +20,39 @@ export class AuthController {
   @Public()
   @Post('register')
   @ApiOperation({ summary: 'Registar novo utilizador' })
+  @ApiBody({ type: RegisterDto })
+  @ApiResponse({ status: 201, description: 'Utilizador registado com sucesso', type: AuthResponseDto })
+  @ApiResponse({ status: 409, description: 'Email já registado' })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Public()
   @Post('login')
-  @ApiOperation({ summary: 'Login' })
+  @ApiOperation({ summary: 'Login do utilizador' })
+  @ApiBody({ type: LoginDto })
+  @ApiResponse({ status: 200, description: 'Login efetuado com sucesso', type: AuthResponseDto })
+  @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
 
+  @Public()
+  @Post('refresh')
+  @ApiOperation({ summary: 'Renovar access token' })
+  @ApiBody({ type: RefreshTokenDto })
+  @ApiResponse({ status: 200, description: 'Token renovado com sucesso', type: AuthResponseDto })
+  @ApiResponse({ status: 401, description: 'Refresh token inválido' })
+  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+    return this.authService.refreshToken(refreshTokenDto.refreshToken);
+  }
+
   @Get('me')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Obter dados do utilizador autenticado' })
-  async getMe(@CurrentUser() user: User) {
-    return this.authService.validateUser(user.id);
+  @ApiOperation({ summary: 'Obter perfil do utilizador autenticado' })
+  @ApiResponse({ status: 200, description: 'Perfil do utilizador' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  async getProfile(@CurrentUser() user: User) {
+    return this.authService.getProfile(user.id);
   }
 }

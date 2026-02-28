@@ -7,82 +7,61 @@ import {
   OneToOne,
   JoinColumn,
 } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
-
-export enum SubscriptionPlan {
-  FREE = 'free',
-  STARTER = 'starter',
-  PRO = 'pro',
-  AGENCY = 'agency',
-}
+import { ApiProperty } from '@nestjs/swagger';
+import { User, UserPlan } from '../../users/entities/user.entity';
 
 export enum SubscriptionStatus {
   ACTIVE = 'active',
   CANCELED = 'canceled',
   PAST_DUE = 'past_due',
   TRIALING = 'trialing',
-  INACTIVE = 'inactive',
+  INCOMPLETE = 'incomplete',
 }
 
 @Entity('subscriptions')
 export class Subscription {
+  @ApiProperty({ description: 'ID único da assinatura' })
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({
-    type: 'enum',
-    enum: SubscriptionPlan,
-    default: SubscriptionPlan.FREE,
-  })
-  plan: SubscriptionPlan;
-
-  @Column({
-    type: 'enum',
-    enum: SubscriptionStatus,
-    default: SubscriptionStatus.INACTIVE,
-  })
-  status: SubscriptionStatus;
-
-  @Column({ nullable: true })
+  @ApiProperty({ description: 'ID da assinatura no Stripe' })
+  @Column({ name: 'stripe_subscription_id', unique: true })
   stripeSubscriptionId: string;
 
-  @Column({ nullable: true })
+  @ApiProperty({ description: 'ID do preço no Stripe' })
+  @Column({ name: 'stripe_price_id' })
   stripePriceId: string;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @ApiProperty({ description: 'Plano', enum: UserPlan })
+  @Column({ type: 'enum', enum: UserPlan })
+  plan: UserPlan;
+
+  @ApiProperty({ description: 'Status', enum: SubscriptionStatus })
+  @Column({ type: 'enum', enum: SubscriptionStatus, default: SubscriptionStatus.ACTIVE })
+  status: SubscriptionStatus;
+
+  @ApiProperty({ description: 'Data de início do período atual' })
+  @Column({ name: 'current_period_start', type: 'timestamp', nullable: true })
   currentPeriodStart: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @ApiProperty({ description: 'Data de fim do período atual' })
+  @Column({ name: 'current_period_end', type: 'timestamp', nullable: true })
   currentPeriodEnd: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
-  canceledAt: Date;
+  @ApiProperty({ description: 'Cancelamento agendado' })
+  @Column({ name: 'cancel_at_period_end', default: false })
+  cancelAtPeriodEnd: boolean;
 
-  @Column({ default: 5 })
-  aiCreditsLimit: number;
-
-  @Column({ default: 0 })
-  aiCreditsUsed: number;
-
-  @Column()
+  @Column({ name: 'user_id', unique: true })
   userId: string;
 
-  @OneToOne(() => User, (user) => user.subscription)
-  @JoinColumn()
+  @OneToOne(() => User, (user) => user.subscription, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
-
-  get isActive(): boolean {
-    return this.status === SubscriptionStatus.ACTIVE || 
-           this.status === SubscriptionStatus.TRIALING;
-  }
-
-  get hasCredits(): boolean {
-    return this.aiCreditsUsed < this.aiCreditsLimit;
-  }
 }

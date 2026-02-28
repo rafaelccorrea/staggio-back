@@ -1,36 +1,33 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { Public } from '../auth/decorators/public.decorator';
+import { Controller, Get } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('subscriptions')
 @Controller('subscriptions')
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
-  @Get('plans')
   @Public()
+  @Get('plans')
   @ApiOperation({ summary: 'Listar planos disponíveis' })
+  @ApiResponse({ status: 200, description: 'Lista de planos de assinatura' })
   async getPlans() {
     return this.subscriptionsService.getPlans();
   }
 
-  @Get('current')
-  @UseGuards(JwtAuthGuard)
+  @Get('me')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Obter assinatura atual' })
-  async getCurrentSubscription(@CurrentUser() user: User) {
-    return this.subscriptionsService.getCurrentSubscription(user);
-  }
-
-  @Get('usage')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Obter estatísticas de uso' })
-  async getUsage(@CurrentUser() user: User) {
-    return this.subscriptionsService.getUsageStats(user.id);
+  @ApiOperation({ summary: 'Obter assinatura do utilizador' })
+  @ApiResponse({ status: 200, description: 'Dados da assinatura' })
+  async getMySubscription(@CurrentUser() user: User) {
+    return this.subscriptionsService.findByUserId(user.id);
   }
 }

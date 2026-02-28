@@ -1,60 +1,68 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole } from '../../users/entities/user.entity';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+  MaxLength,
+} from 'class-validator';
 
 export class RegisterDto {
-  @ApiProperty({ example: 'João Silva' })
+  @ApiProperty({ description: 'Nome completo', example: 'Rafael Correa' })
+  @IsNotEmpty({ message: 'Nome é obrigatório' })
   @IsString()
+  @MaxLength(255)
   name: string;
 
-  @ApiProperty({ example: 'joao@email.com' })
-  @IsEmail()
+  @ApiProperty({ description: 'Email', example: 'rafael@staggio.com' })
+  @IsNotEmpty({ message: 'Email é obrigatório' })
+  @IsEmail({}, { message: 'Email inválido' })
   email: string;
 
-  @ApiProperty({ example: 'senha123', minLength: 6 })
-  @IsString()
-  @MinLength(6)
+  @ApiProperty({ description: 'Senha (mínimo 6 caracteres)', example: 'senha123' })
+  @IsNotEmpty({ message: 'Senha é obrigatória' })
+  @MinLength(6, { message: 'Senha deve ter no mínimo 6 caracteres' })
   password: string;
 
-  @ApiPropertyOptional({ example: '11999999999' })
+  @ApiPropertyOptional({ description: 'Telefone', example: '11999999999' })
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   phone?: string;
 
-  @ApiPropertyOptional({ example: '12345-F' })
+  @ApiPropertyOptional({ description: 'CRECI', example: 'CRECI-SP 123456' })
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   creci?: string;
-
-  @ApiPropertyOptional({ enum: UserRole, default: UserRole.CORRETOR })
-  @IsOptional()
-  @IsEnum(UserRole)
-  role?: UserRole;
 }
 
 export class LoginDto {
-  @ApiProperty({ example: 'joao@email.com' })
-  @IsEmail()
+  @ApiProperty({ description: 'Email', example: 'rafael@staggio.com' })
+  @IsNotEmpty({ message: 'Email é obrigatório' })
+  @IsEmail({}, { message: 'Email inválido' })
   email: string;
 
-  @ApiProperty({ example: 'senha123' })
-  @IsString()
+  @ApiProperty({ description: 'Senha', example: 'senha123' })
+  @IsNotEmpty({ message: 'Senha é obrigatória' })
   password: string;
 }
 
+export class RefreshTokenDto {
+  @ApiProperty({ description: 'Refresh token' })
+  @IsNotEmpty()
+  @IsString()
+  refreshToken: string;
+}
+
 export class AuthResponseDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Access token JWT' })
   accessToken: string;
 
-  @ApiProperty()
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    avatarUrl: string | null;
-    plan: string;
-    aiCreditsUsed: number;
-    aiCreditsLimit: number;
-  };
+  @ApiProperty({ description: 'Refresh token' })
+  refreshToken: string;
+
+  @ApiProperty({ description: 'Dados do utilizador' })
+  user: any;
 }
