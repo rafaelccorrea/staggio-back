@@ -15,6 +15,7 @@ import { StripeModule } from './modules/stripe/stripe.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { HealthModule } from './modules/health/health.module';
 import { HeyGenModule } from './modules/heygen/heygen.module';
+import { VideoModule } from './modules/video/video.module';
 
 // Guards
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
@@ -69,6 +70,7 @@ import { Subscription } from './modules/subscriptions/entities/subscription.enti
     StorageModule,
     HealthModule,
     HeyGenModule,
+    VideoModule,
   ],
   providers: [
     {

@@ -16,6 +16,7 @@ export enum GenerationType {
   DESCRIPTION = 'description',
   PHOTO_ENHANCE = 'photo_enhance',
   CHAT = 'chat',
+  VIDEO_SLIDESHOW = 'video_slideshow',
 }
 
 export enum GenerationStatus {
