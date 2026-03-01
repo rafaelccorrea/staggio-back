@@ -394,6 +394,114 @@ export class AiService {
   }
 
   /**
+   * Validar Imagem de Propriedade - Verifica se eh realmente um imovel
+   */
+  async validatePropertyImage(userId: string, imageUrl: string): Promise<boolean> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new BadRequestException('Utilizador nao encontrado');
+    }
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4-vision-preview',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Analise esta imagem e responda APENAS com SIM ou NAO.
+A imagem mostra um imovel, terreno, planta de casa, fachada de propriedade, ou interior de residencia?
+Responda apenas com uma palavra: SIM ou NAO`,
+              },
+              {
+                type: 'image_url',
+                image_url: { url: imageUrl },
+              },
+            ],
+          },
+        ],
+        max_tokens: 10,
+      });
+
+      const content = response.choices[0]?.message?.content?.toUpperCase().trim() || '';
+      return content.includes('SIM');
+    } catch (error) {
+      this.logger.error(`Image validation error: ${error.message}`);
+      throw new InternalServerErrorException('Erro ao validar imagem');
+    }
+  }
+
+  /**
+   * Gerar Script para Video - Cria narracao para video de propriedade
+   */
+  async generateVideoScript(userId: string, imageUrl: string): Promise<string> {
+    const creditsNeeded = 1;
+    await this.validateCredits(userId, creditsNeeded);
+
+    const generation = await this.createGeneration({
+      type: GenerationType.DESCRIPTION,
+      status: GenerationStatus.PROCESSING,
+      userId,
+      inputImageUrl: imageUrl,
+      inputData: { type: 'video_script' },
+    });
+
+    const startTime = Date.now();
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4-vision-preview',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Analise esta foto de imovel e crie um script de narracao para um video de 30 segundos que destaque os melhores aspectos da propriedade.
+O script deve:
+- Ser envolvente e profissional
+- Durar aproximadamente 30 segundos (cerca de 75-85 palavras)
+- Destacar caracteristicas positivas
+- Usar linguagem que atrai compradores
+- Ser em portugues brasileiro
+Retorne APENAS o script, sem explicacoes adicionais.`,
+              },
+              {
+                type: 'image_url',
+                image_url: { url: imageUrl },
+              },
+            ],
+          },
+        ],
+        max_tokens: 200,
+      });
+
+      const outputText = response.choices[0]?.message?.content || '';
+      const processingTimeMs = Date.now() - startTime;
+
+      await this.consumeCredits(userId, creditsNeeded);
+
+      generation.status = GenerationStatus.COMPLETED;
+      generation.outputText = outputText;
+      generation.creditsUsed = creditsNeeded;
+      generation.processingTimeMs = processingTimeMs;
+      await this.generationsRepository.save(generation);
+
+      return outputText;
+    } catch (error) {
+      this.logger.error(`Video script generation error: ${error.message}`);
+      generation.status = GenerationStatus.FAILED;
+      generation.errorMessage = error.message;
+      await this.generationsRepository.save(generation);
+
+      throw new InternalServerErrorException('Erro ao gerar script de video');
+    }
+  }
+
+  /**
    * Chat IA - Assistente inteligente para corretores
    */
   async chat(userId: string, dto: ChatDto) {

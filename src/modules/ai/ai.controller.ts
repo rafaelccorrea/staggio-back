@@ -76,4 +76,33 @@ export class AiController {
   async chat(@CurrentUser() user: User, @Body() dto: ChatDto) {
     return this.aiService.chat(user.id, dto);
   }
+
+  @Post('validate-property-image')
+  @ApiOperation({
+    summary: 'Validar Imagem de Propriedade',
+    description: 'Verifica se a imagem eh realmente de um imovel. Nao consome creditos.',
+  })
+  @ApiResponse({ status: 200, description: 'Resultado da validacao' })
+  async validatePropertyImage(
+    @CurrentUser() user: User,
+    @Body() body: { imageUrl: string },
+  ) {
+    const isValid = await this.aiService.validatePropertyImage(user.id, body.imageUrl);
+    return { success: true, isValid };
+  }
+
+  @Post('generate-video-script')
+  @ApiOperation({
+    summary: 'Gerar Script para Video',
+    description: 'Cria narracao para video de propriedade. Consome 1 credito.',
+  })
+  @ApiResponse({ status: 200, description: 'Script gerado' })
+  @ApiResponse({ status: 403, description: 'Creditos insuficientes' })
+  async generateVideoScript(
+    @CurrentUser() user: User,
+    @Body() body: { imageUrl: string },
+  ) {
+    const script = await this.aiService.generateVideoScript(user.id, body.imageUrl);
+    return { success: true, script };
+  }
 }
