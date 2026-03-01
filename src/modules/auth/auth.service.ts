@@ -75,6 +75,7 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const user = await this.usersRepository.findOne({
       where: { email: loginDto.email },
+      relations: ['subscription'],
     });
 
     if (!user) {
@@ -96,7 +97,10 @@ export class AuthService {
 
     return {
       ...tokens,
-      user: userWithoutPassword,
+      user: {
+        ...userWithoutPassword,
+        plan: user.subscription?.plan || 'free',
+      },
     };
   }
 
@@ -108,6 +112,7 @@ export class AuthService {
 
       const user = await this.usersRepository.findOne({
         where: { id: payload.sub, isActive: true },
+        relations: ['subscription'],
       });
 
       if (!user) {
@@ -119,7 +124,10 @@ export class AuthService {
 
       return {
         ...tokens,
-        user: userWithoutPassword,
+        user: {
+          ...userWithoutPassword,
+          plan: user.subscription?.plan || 'free',
+        },
       };
     } catch {
       throw new UnauthorizedException('Refresh token inválido ou expirado');
@@ -137,7 +145,11 @@ export class AuthService {
     }
 
     const { password, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    // Include plan from subscription for frontend compatibility
+    return {
+      ...userWithoutPassword,
+      plan: user.subscription?.plan || 'free',
+    };
   }
 
   /**
@@ -191,12 +203,21 @@ export class AuthService {
       this.logger.log(`Novo usu\u00e1rio criado via Google: ${email}`);
     }
 
-    const tokens = await this.generateTokens(user);
-    const { password, ...userWithoutPassword } = user;
+    // Reload user with subscription relation
+    const fullUser = await this.usersRepository.findOne({
+      where: { id: user.id },
+      relations: ['subscription'],
+    });
+
+    const tokens = await this.generateTokens(fullUser || user);
+    const { password: pwd, ...userWithoutPassword } = fullUser || user;
 
     return {
       ...tokens,
-      user: userWithoutPassword,
+      user: {
+        ...userWithoutPassword,
+        plan: fullUser?.subscription?.plan || 'free',
+      },
     };
   }
 
