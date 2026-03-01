@@ -73,6 +73,69 @@ export class StripeService {
   }
 
   /**
+   * Pacotes de créditos avulsos (exponenciais)
+   */
+  private creditPacks: Record<string, { credits: number; priceInCents: number; name: string }> = {
+    pack_10: { credits: 10, priceInCents: 1490, name: '10 Créditos' },
+    pack_30: { credits: 30, priceInCents: 3490, name: '30 Créditos' },
+    pack_80: { credits: 80, priceInCents: 6990, name: '80 Créditos' },
+    pack_200: { credits: 200, priceInCents: 14990, name: '200 Créditos' },
+    pack_500: { credits: 500, priceInCents: 29990, name: '500 Créditos' },
+  };
+
+  /**
+   * Criar sessão de checkout para compra de créditos avulsos
+   */
+  async createCreditsPurchaseSession(userId: string, pack: string) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new Error('Utilizador não encontrado');
+    }
+
+    const packData = this.creditPacks[pack];
+    if (!packData) {
+      throw new Error('Pacote inválido');
+    }
+
+    // Criar ou obter customer no Stripe
+    let customerId = user.stripeCustomerId;
+    if (!customerId) {
+      const customer = await this.stripe.customers.create({
+        email: user.email,
+        name: user.name,
+        metadata: { userId: user.id },
+      });
+      customerId = customer.id;
+      await this.usersRepository.update(userId, { stripeCustomerId: customerId });
+    }
+
+    const session = await this.stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: `Staggio - ${packData.name}`,
+              description: `${packData.credits} créditos de IA para usar quando quiser`,
+            },
+            unit_amount: packData.priceInCents,
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${this.configService.get('APP_URL')}/credits/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${this.configService.get('APP_URL')}/credits/cancel`,
+      metadata: { userId, pack, type: 'credit_purchase', credits: packData.credits.toString() },
+    });
+
+    return { url: session.url, sessionId: session.id };
+  }
+
+  /**
    * Criar portal de gestão de assinatura
    */
   async createPortalSession(userId: string) {
@@ -107,9 +170,7 @@ export class StripeService {
     this.logger.log(`Processing webhook event: ${event.type}`);
 
     switch (event.type) {
-      case 'checkout.session.completed':
-        await this.handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
-        break;
+      // Handled above in the new checkout.session.completed case
       case 'customer.subscription.updated':
         await this.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
         break;
@@ -119,6 +180,15 @@ export class StripeService {
       case 'invoice.payment_failed':
         await this.handlePaymentFailed(event.data.object as Stripe.Invoice);
         break;
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.type === 'credit_purchase') {
+          await this.handleCreditsPurchase(session);
+        } else {
+          await this.handleCheckoutCompleted(session);
+        }
+        break;
+      }
       default:
         this.logger.log(`Unhandled event type: ${event.type}`);
     }
@@ -200,6 +270,32 @@ export class StripeService {
 
   private async handlePaymentFailed(invoice: Stripe.Invoice) {
     this.logger.warn(`Payment failed for invoice: ${invoice.id}`);
+  }
+
+  /**
+   * Processar compra de créditos avulsos
+   */
+  private async handleCreditsPurchase(session: Stripe.Checkout.Session) {
+    const userId = session.metadata?.userId;
+    const credits = parseInt(session.metadata?.credits || '0', 10);
+
+    if (!userId || credits <= 0) {
+      this.logger.error('Dados inválidos na compra de créditos');
+      return;
+    }
+
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      this.logger.error(`Usuário não encontrado: ${userId}`);
+      return;
+    }
+
+    // Adicionar créditos bônus (não resetam mensalmente)
+    await this.usersRepository.update(userId, {
+      bonusCredits: (user.bonusCredits || 0) + credits,
+    });
+
+    this.logger.log(`${credits} créditos bônus adicionados para usuário ${userId}`);
   }
 
   private getPlanFromPriceId(priceId: string): UserPlan {

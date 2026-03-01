@@ -40,6 +40,18 @@ export class StripeController {
     return this.stripeService.createCheckoutSession(user.id, body.plan);
   }
 
+  @Post('buy-credits')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Comprar créditos avulsos' })
+  @ApiBody({ schema: { properties: { pack: { type: 'string', enum: ['pack_10', 'pack_30', 'pack_80', 'pack_200', 'pack_500'] } } } })
+  @ApiResponse({ status: 200, description: 'URL de checkout para compra de créditos' })
+  async buyCredits(
+    @CurrentUser() user: User,
+    @Body() body: { pack: string },
+  ) {
+    return this.stripeService.createCreditsPurchaseSession(user.id, body.pack);
+  }
+
   @Post('portal')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Criar sessão do portal de gestão' })
