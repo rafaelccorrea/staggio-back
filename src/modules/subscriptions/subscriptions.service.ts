@@ -24,7 +24,7 @@ export class SubscriptionsService {
       {
         id: 'starter',
         name: 'Starter',
-        price: 39.90,
+        price: 19.90,
         currency: 'BRL',
         interval: 'month',
         credits: 50,
@@ -39,7 +39,7 @@ export class SubscriptionsService {
       {
         id: 'pro',
         name: 'Pro',
-        price: 79.90,
+        price: 49.90,
         currency: 'BRL',
         interval: 'month',
         credits: 200,
@@ -56,7 +56,7 @@ export class SubscriptionsService {
       {
         id: 'agency',
         name: 'Imobiliária',
-        price: 199.90,
+        price: 129.90,
         currency: 'BRL',
         interval: 'month',
         credits: -1,
