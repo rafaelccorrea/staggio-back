@@ -89,7 +89,7 @@ export class SubscriptionsService {
     const creditsMap: Record<string, number> = {
       [PlanType.STARTER]: 50,
       [PlanType.PRO]: 200,
-      [PlanType.AGENCY]: 999999,
+      [PlanType.AGENCY]: 500,
       [PlanType.FREE]: 5,
     };
 

@@ -18,7 +18,7 @@ const PLAN_CREDITS_MAP: Record<string, number> = {
   free: 5,
   starter: 50,
   pro: 200,
-  agency: 999999,
+  agency: 500,
 };
 
 @Injectable()
