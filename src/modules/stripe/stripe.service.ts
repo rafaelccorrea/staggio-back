@@ -2,8 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
-import { SubscriptionStatus } from '../subscriptions/entities/subscription.entity';
-import { UserPlan } from '../users/entities/user.entity';
+import { SubscriptionStatus, PlanType } from '../subscriptions/entities/subscription.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
@@ -198,7 +197,7 @@ export class StripeService {
 
   private async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const userId = session.metadata?.userId;
-    const plan = session.metadata?.plan as UserPlan;
+    const plan = session.metadata?.plan as PlanType;
 
     if (!userId || !plan) return;
 
@@ -263,7 +262,7 @@ export class StripeService {
       userId,
       subscription.id,
       subscription.items.data[0].price.id,
-      UserPlan.FREE,
+      PlanType.FREE,
       SubscriptionStatus.CANCELED,
     );
   }
@@ -298,14 +297,14 @@ export class StripeService {
     this.logger.log(`${credits} créditos bônus adicionados para usuário ${userId}`);
   }
 
-  private getPlanFromPriceId(priceId: string): UserPlan {
+  private getPlanFromPriceId(priceId: string): PlanType {
     const starterPriceId = this.configService.get<string>('STRIPE_STARTER_PRICE_ID');
     const proPriceId = this.configService.get<string>('STRIPE_PRO_PRICE_ID');
     const agencyPriceId = this.configService.get<string>('STRIPE_AGENCY_PRICE_ID');
 
-    if (priceId === starterPriceId) return UserPlan.STARTER;
-    if (priceId === proPriceId) return UserPlan.PRO;
-    if (priceId === agencyPriceId) return UserPlan.AGENCY;
-    return UserPlan.FREE;
+    if (priceId === starterPriceId) return PlanType.STARTER;
+    if (priceId === proPriceId) return PlanType.PRO;
+    if (priceId === agencyPriceId) return PlanType.AGENCY;
+    return PlanType.FREE;
   }
 }

@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User, UserRole, UserPlan } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 
@@ -13,7 +13,6 @@ const mockUser: Partial<User> = {
   email: 'test@staggio.com',
   password: '$2b$12$hashedpassword',
   role: UserRole.CORRETOR,
-  plan: UserPlan.FREE,
   isActive: true,
   aiCreditsUsed: 0,
   aiCreditsLimit: 5,

@@ -46,9 +46,10 @@ export class UsersService {
 
   async getDashboardStats(userId: string) {
     const user = await this.findById(userId);
+    const plan = user.subscription?.plan || 'free';
 
     return {
-      plan: user.plan,
+      plan,
       creditsUsed: user.aiCreditsUsed,
       creditsLimit: user.aiCreditsLimit,
       creditsRemaining: user.aiCreditsLimit - user.aiCreditsUsed,

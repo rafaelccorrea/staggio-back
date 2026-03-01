@@ -8,7 +8,14 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
-import { User, UserPlan } from '../../users/entities/user.entity';
+import { User } from '../../users/entities/user.entity';
+
+export enum PlanType {
+  FREE = 'free',
+  STARTER = 'starter',
+  PRO = 'pro',
+  AGENCY = 'agency',
+}
 
 export enum SubscriptionStatus {
   ACTIVE = 'active',
@@ -32,9 +39,9 @@ export class Subscription {
   @Column({ name: 'stripe_price_id' })
   stripePriceId: string;
 
-  @ApiProperty({ description: 'Plano', enum: UserPlan })
+  @ApiProperty({ description: 'Plano', enum: PlanType })
   @Column({ type: 'varchar', length: 20 })
-  plan: UserPlan;
+  plan: PlanType;
 
   @ApiProperty({ description: 'Status', enum: SubscriptionStatus })
   @Column({ type: 'varchar', length: 30, default: SubscriptionStatus.ACTIVE })

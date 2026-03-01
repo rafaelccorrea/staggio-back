@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AiService } from './ai.service';
 import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User, UserPlan, UserRole } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { Generation, GenerationType, GenerationStatus } from '../generations/entities/generation.entity';
 import { ForbiddenException } from '@nestjs/common';
 
@@ -28,7 +28,6 @@ const mockUser: Partial<User> = {
   name: 'Test User',
   email: 'test@staggio.com',
   role: UserRole.CORRETOR,
-  plan: UserPlan.STARTER,
   isActive: true,
   aiCreditsUsed: 0,
   aiCreditsLimit: 50,

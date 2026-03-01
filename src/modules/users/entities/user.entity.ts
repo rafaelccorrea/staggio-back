@@ -19,13 +19,6 @@ export enum UserRole {
   ADMIN = 'admin',
 }
 
-export enum UserPlan {
-  FREE = 'free',
-  STARTER = 'starter',
-  PRO = 'pro',
-  AGENCY = 'agency',
-}
-
 @Entity('users')
 export class User {
   @ApiProperty({ description: 'ID único do utilizador' })
@@ -60,9 +53,7 @@ export class User {
   @Column({ type: 'varchar', length: 20, default: UserRole.CORRETOR })
   role: UserRole;
 
-  @ApiProperty({ description: 'Plano atual', enum: UserPlan })
-  @Column({ type: 'varchar', length: 20, default: UserPlan.FREE })
-  plan: UserPlan;
+
 
   @ApiProperty({ description: 'Créditos de IA utilizados no mês' })
   @Column({ name: 'ai_credits_used', default: 0 })

@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Subscription, SubscriptionStatus } from './entities/subscription.entity';
-import { User, UserPlan } from '../users/entities/user.entity';
+import { Subscription, SubscriptionStatus, PlanType } from './entities/subscription.entity';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class SubscriptionsService {
@@ -77,7 +77,7 @@ export class SubscriptionsService {
     userId: string,
     stripeSubscriptionId: string,
     stripePriceId: string,
-    plan: UserPlan,
+    plan: PlanType,
     status: SubscriptionStatus,
     currentPeriodStart?: Date,
     currentPeriodEnd?: Date,
@@ -87,10 +87,10 @@ export class SubscriptionsService {
     });
 
     const creditsMap: Record<string, number> = {
-      [UserPlan.STARTER]: 50,
-      [UserPlan.PRO]: 200,
-      [UserPlan.AGENCY]: 999999,
-      [UserPlan.FREE]: 5,
+      [PlanType.STARTER]: 50,
+      [PlanType.PRO]: 200,
+      [PlanType.AGENCY]: 999999,
+      [PlanType.FREE]: 5,
     };
 
     if (subscription) {
@@ -114,9 +114,8 @@ export class SubscriptionsService {
 
     const savedSubscription = await this.subscriptionsRepository.save(subscription);
 
-    // Atualizar plano e créditos do utilizador
+    // Atualizar créditos do utilizador (plano agora é gerido pela subscription)
     await this.usersRepository.update(userId, {
-      plan,
       aiCreditsLimit: creditsMap[plan] || 5,
       aiCreditsUsed: 0,
     });
