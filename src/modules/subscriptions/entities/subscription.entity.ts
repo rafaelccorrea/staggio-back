@@ -40,7 +40,7 @@ export class Subscription {
   stripePriceId: string;
 
   @ApiProperty({ description: 'Plano', enum: PlanType })
-  @Column({ type: 'varchar', length: 20 })
+  @Column({ type: 'enum', enum: PlanType, default: PlanType.FREE })
   plan: PlanType;
 
   @ApiProperty({ description: 'Status', enum: SubscriptionStatus })
