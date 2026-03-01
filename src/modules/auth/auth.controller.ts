@@ -28,6 +28,16 @@ export class AuthController {
   }
 
   @Public()
+  @Post('google')
+  @ApiOperation({ summary: 'Login/Registro via Google (Firebase)' })
+  @ApiBody({ schema: { properties: { idToken: { type: 'string', description: 'Firebase ID Token do Google Sign-In' } }, required: ['idToken'] } })
+  @ApiResponse({ status: 200, description: 'Login via Google efetuado com sucesso', type: AuthResponseDto })
+  @ApiResponse({ status: 401, description: 'Token inv\u00e1lido' })
+  async googleAuth(@Body() body: { idToken: string }) {
+    return this.authService.googleAuth(body.idToken);
+  }
+
+  @Public()
   @Post('login')
   @ApiOperation({ summary: 'Login do utilizador' })
   @ApiBody({ type: LoginDto })

@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -11,15 +12,38 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { User } from '../users/entities/user.entity';
 import { RegisterDto, LoginDto } from './dto/register.dto';
+import * as admin from 'firebase-admin';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {}
+  ) {
+    // Inicializar Firebase Admin SDK (apenas uma vez)
+    if (!admin.apps.length) {
+      const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
+      const clientEmail = this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
+      const privateKey = this.configService.get<string>('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n');
+
+      if (projectId && clientEmail && privateKey) {
+        admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId,
+            clientEmail,
+            privateKey,
+          }),
+        });
+        this.logger.log('Firebase Admin SDK inicializado com sucesso');
+      } else {
+        this.logger.warn('Firebase Admin SDK n\u00e3o configurado - vari\u00e1veis de ambiente ausentes');
+      }
+    }
+  }
 
   async register(registerDto: RegisterDto) {
     const existingUser = await this.usersRepository.findOne({
@@ -114,6 +138,66 @@ export class AuthService {
 
     const { password, ...userWithoutPassword } = user;
     return userWithoutPassword;
+  }
+
+  /**
+   * Login/Registro via Google (Firebase Auth)
+   */
+  async googleAuth(idToken: string) {
+    if (!admin.apps.length) {
+      throw new BadRequestException('Firebase n\u00e3o est\u00e1 configurado no servidor');
+    }
+
+    let decodedToken: admin.auth.DecodedIdToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(idToken);
+    } catch (error) {
+      this.logger.error(`Erro ao verificar idToken do Google: ${error.message}`);
+      throw new UnauthorizedException('Token do Google inv\u00e1lido ou expirado');
+    }
+
+    const { email, name, picture, uid } = decodedToken;
+
+    if (!email) {
+      throw new BadRequestException('Email n\u00e3o encontrado no token do Google');
+    }
+
+    // Verificar se o usu\u00e1rio j\u00e1 existe
+    let user = await this.usersRepository.findOne({ where: { email } });
+
+    if (user) {
+      // Usu\u00e1rio existente - atualizar avatar se necess\u00e1rio
+      if (picture && !user.avatarUrl) {
+        await this.usersRepository.update(user.id, { avatarUrl: picture });
+        user.avatarUrl = picture;
+      }
+
+      if (!user.isActive) {
+        throw new UnauthorizedException('Conta desativada');
+      }
+    } else {
+      // Novo usu\u00e1rio - criar conta
+      const randomPassword = require('crypto').randomBytes(32).toString('hex');
+      const hashedPassword = await bcrypt.hash(randomPassword, 12);
+
+      user = this.usersRepository.create({
+        name: name || email.split('@')[0],
+        email,
+        password: hashedPassword,
+        avatarUrl: picture || null,
+      });
+
+      user = await this.usersRepository.save(user);
+      this.logger.log(`Novo usu\u00e1rio criado via Google: ${email}`);
+    }
+
+    const tokens = await this.generateTokens(user);
+    const { password, ...userWithoutPassword } = user;
+
+    return {
+      ...tokens,
+      user: userWithoutPassword,
+    };
   }
 
   private async generateTokens(user: User) {
