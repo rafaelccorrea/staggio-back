@@ -72,6 +72,10 @@ export class User {
   @Column({ name: 'ai_credits_limit', default: 5 })
   aiCreditsLimit: number;
 
+  @ApiProperty({ description: 'Créditos bônus comprados avulsos (não resetam mensalmente)' })
+  @Column({ name: 'bonus_credits', default: 0 })
+  bonusCredits: number;
+
   @ApiProperty({ description: 'ID do cliente no Stripe', required: false })
   @Column({ name: 'stripe_customer_id', nullable: true })
   stripeCustomerId: string;
