@@ -18,6 +18,7 @@ import {
   PhotoEnhanceDto,
   ChatDto,
 } from './dto/ai.dto';
+import { REAL_ESTATE_ASSISTANT_PROMPT } from './prompts/real-estate-assistant';
 
 @Injectable()
 export class AiService {
@@ -514,17 +515,7 @@ Retorne APENAS o script, sem explicacoes adicionais.`,
       const messages: any[] = [
         {
           role: 'system',
-          content: `Você é o assistente IA do Staggio, especializado em ajudar corretores de imóveis.
-          Você pode ajudar com:
-          - Estratégias de venda e marketing imobiliário
-          - Dicas de negociação
-          - Análise de mercado
-          - Sugestões de precificação
-          - Dicas de apresentação de imóveis
-          - Questões jurídicas básicas sobre compra/venda
-          - Dicas de fotografia e staging
-          Responda sempre em português brasileiro, de forma clara e objetiva.
-          Não forneça informações que possam ser consideradas aconselhamento jurídico ou financeiro definitivo.`,
+          content: REAL_ESTATE_ASSISTANT_PROMPT,
         },
       ];
 
@@ -558,7 +549,9 @@ Retorne APENAS o script, sem explicacoes adicionais.`,
 
       return {
         type: 'chat',
+        reply: outputText,
         message: outputText,
+        response: outputText,
         creditsUsed: creditsNeeded,
         processingTimeMs,
       };
