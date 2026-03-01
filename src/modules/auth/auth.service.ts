@@ -14,6 +14,13 @@ import { User } from '../users/entities/user.entity';
 import { RegisterDto, LoginDto } from './dto/register.dto';
 import * as admin from 'firebase-admin';
 
+const PLAN_CREDITS_MAP: Record<string, number> = {
+  free: 5,
+  starter: 50,
+  pro: 200,
+  agency: 999999,
+};
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -95,11 +102,13 @@ export class AuthService {
     const tokens = await this.generateTokens(user);
     const { password, ...userWithoutPassword } = user;
 
+    const plan = user.subscription?.plan || 'free';
     return {
       ...tokens,
       user: {
         ...userWithoutPassword,
-        plan: user.subscription?.plan || 'free',
+        plan,
+        aiCreditsLimit: PLAN_CREDITS_MAP[plan] || 5,
       },
     };
   }
@@ -122,11 +131,13 @@ export class AuthService {
       const tokens = await this.generateTokens(user);
       const { password, ...userWithoutPassword } = user;
 
+      const plan = user.subscription?.plan || 'free';
       return {
         ...tokens,
         user: {
           ...userWithoutPassword,
-          plan: user.subscription?.plan || 'free',
+          plan,
+          aiCreditsLimit: PLAN_CREDITS_MAP[plan] || 5,
         },
       };
     } catch {
@@ -146,9 +157,11 @@ export class AuthService {
 
     const { password, ...userWithoutPassword } = user;
     // Include plan from subscription for frontend compatibility
+    const plan = user.subscription?.plan || 'free';
     return {
       ...userWithoutPassword,
-      plan: user.subscription?.plan || 'free',
+      plan,
+      aiCreditsLimit: PLAN_CREDITS_MAP[plan] || 5,
     };
   }
 
@@ -212,11 +225,13 @@ export class AuthService {
     const tokens = await this.generateTokens(fullUser || user);
     const { password: pwd, ...userWithoutPassword } = fullUser || user;
 
+    const plan = fullUser?.subscription?.plan || 'free';
     return {
       ...tokens,
       user: {
         ...userWithoutPassword,
-        plan: fullUser?.subscription?.plan || 'free',
+        plan,
+        aiCreditsLimit: PLAN_CREDITS_MAP[plan] || 5,
       },
     };
   }
